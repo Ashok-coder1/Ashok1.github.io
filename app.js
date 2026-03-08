@@ -15,14 +15,19 @@ app.get('/', (req, res) => {
 });
 
 // ===== MongoDB connection =====
-const mongoURI = process.env.MONGO_URI || 'mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/?appName=Cluster1';
+// Use environment variable for Render
+const mongoURI = process.env.MONGO_URI; 
 
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+if (mongoURI) {
+  mongoose.connect(mongoURI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
+} else {
+  console.log("No MongoDB URI provided, skipping database connection");
+}
 
 // ===== User schema =====
 const userSchema = new mongoose.Schema({
@@ -34,7 +39,6 @@ const User = mongoose.model('User', userSchema);
 // ===== Signup route =====
 app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password) return res.json({ message: "Email and password required" });
 
   try {
@@ -52,7 +56,6 @@ app.post('/signup', async (req, res) => {
 // ===== Login route =====
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-
   if (!email || !password) return res.json({ message: "Email and password required" });
 
   try {
