@@ -1,4 +1,4 @@
-const API = "https://ashok1-github-io-3.onrender.com"; // Replace with your Render URL
+const API = "https://ashok1-github-io-4.onrender.com"; // Replace with your Render URL
 
 function signup() {
   const email = document.getElementById("signupEmail").value;
@@ -27,3 +27,4 @@ function login() {
   .then(data => alert(data.message))
   .catch(err => alert("Error: " + err));
 }
+
