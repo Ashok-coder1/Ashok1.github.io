@@ -1,6 +1,5 @@
-const API = "https://ashok1-github-io-3.onrender.com"; // your Render URL
+const API = "https://ashok1-github-io-3.onrender.com"; // Render URL
 
-// ===== SIGNUP =====
 function signup() {
   const email = document.getElementById("signupEmail").value;
   const password = document.getElementById("signupPassword").value;
@@ -15,7 +14,6 @@ function signup() {
   .catch(err => alert("Error: " + err));
 }
 
-// ===== LOGIN =====
 function login() {
   const email = document.getElementById("loginEmail").value;
   const password = document.getElementById("loginPassword").value;
