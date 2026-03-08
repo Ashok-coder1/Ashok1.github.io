@@ -29,7 +29,7 @@ const User = mongoose.model("User", UserSchema);
 
 // Routes
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "Public", "Indexx.html"));
+  res.sendFile(path.join(__dirname, "Public", "index.html"));
 });
 
 app.post("/signup", async (req, res) => {
