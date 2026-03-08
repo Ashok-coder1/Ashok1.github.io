@@ -1,4 +1,4 @@
-const API = "https://ashok1-github-io-3.onrender.com"; // Render URL
+const API = "https://ashok1-github-io-3.onrender.com"; // Replace with your Render URL
 
 function signup() {
   const email = document.getElementById("signupEmail").value;
