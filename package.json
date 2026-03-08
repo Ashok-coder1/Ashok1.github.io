@@ -1,20 +1,15 @@
-
-
 {
-  "name": "ashok-backend",
+  "name": "login-system",
   "version": "1.0.0",
-  "description": "Simple Node.js + Express + MongoDB backend",
   "main": "app.js",
   "scripts": {
     "start": "node app.js"
   },
-  "keywords": [],
-  "author": "Ashok",
-  "license": "ISC",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "mongoose": "^7.7.0",
-    "dotenv": "^16.3.1"
-  },
-  "type": "commonjs"
+    "mongoose": "^8.0.0"
+  }
 }
