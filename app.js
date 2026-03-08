@@ -1,60 +1,70 @@
-
-
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const path = require("path");
+const express = require('express');
+const path = require('path');
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
 
 const app = express();
 
-// Middleware
-app.use(express.json());
-app.use(cors());
+// ===== Middleware =====
+app.use(bodyParser.json());
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Serve frontend files from Public folder
-app.use(express.static(path.join(__dirname, "Public")));
+// ===== Serve frontend =====
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-// MongoDB connection
-mongoose.connect("mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/?appName=Cluster1")
-  .then(() => console.log("MongoDB connected"))
-  .catch(err => console.log(err));
+// ===== MongoDB connection =====
+const mongoURI = process.env.MONGO_URI || 'mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/?appName=Cluster1';
 
-// User schema
-const UserSchema = new mongoose.Schema({
+mongoose.connect(mongoURI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection error:', err));
+
+// ===== User schema =====
+const userSchema = new mongoose.Schema({
   email: String,
   password: String
 });
+const User = mongoose.model('User', userSchema);
 
-const User = mongoose.model("User", UserSchema);
-
-// Routes
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "Public", "index.html"));
-});
-
-app.post("/signup", async (req, res) => {
+// ===== Signup route =====
+app.post('/signup', async (req, res) => {
   const { email, password } = req.body;
 
-  const existingUser = await User.findOne({ email });
-  if (existingUser) return res.json({ message: "User already exists" });
+  if (!email || !password) return res.json({ message: "Email and password required" });
 
-  const user = new User({ email, password });
-  await user.save();
+  try {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.json({ message: "Email already exists" });
 
-  res.json({ message: "Signup successful" });
+    const newUser = new User({ email, password });
+    await newUser.save();
+    res.json({ message: "Signup successful" });
+  } catch (err) {
+    res.json({ message: "Error during signup" });
+  }
 });
 
-app.post("/login", async (req, res) => {
+// ===== Login route =====
+app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email });
-  if (!user) return res.json({ message: "User not found" });
-  if (user.password !== password) return res.json({ message: "Wrong password" });
+  if (!email || !password) return res.json({ message: "Email and password required" });
 
-  res.json({ message: "Login successful" });
+  try {
+    const user = await User.findOne({ email, password });
+    if (!user) return res.json({ message: "Invalid email or password" });
+
+    res.json({ message: "Login successful" });
+  } catch (err) {
+    res.json({ message: "Error during login" });
+  }
 });
 
-// Start server
-app.listen(process.env.PORT || 3000, () => {
-  console.log("Server running");
-});
+// ===== Start server =====
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
