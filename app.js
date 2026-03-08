@@ -14,8 +14,7 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// ===== MongoDB connection =====
-// Use environment variable for Render
+// ===== MongoDB connection via environment variable =====
 const mongoURI = process.env.MONGO_URI; 
 
 if (mongoURI) {
