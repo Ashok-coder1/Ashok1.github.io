@@ -47,32 +47,34 @@
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="script1.js"></script>
 
     <script>
-        // SINGLE WORKING SCRIPT - DELETE THE OTHER TWO
         document.addEventListener("DOMContentLoaded", () => {
             const btn = document.getElementById("profileBtn");
             const menu = document.getElementById("profileMenu");
 
-            btn.addEventListener("click", (e) => {
-                e.stopPropagation(); // Prevents the click from reaching the window
-                
-                // Toggle between none and flex
-                if (menu.style.display === "none" || menu.style.display === "") {
-                    menu.style.display = "flex";
-                } else {
-                    menu.style.display = "none";
-                }
-            });
+            if (btn && menu) {
+                btn.addEventListener("click", (e) => {
+                    e.stopPropagation(); // Stops the click from bubbling to the window
+                    
+                    // Toggle visibility
+                    if (menu.style.display === "none" || menu.style.display === "") {
+                        menu.style.display = "flex";
+                    } else {
+                        menu.style.display = "none";
+                    }
+                });
 
-            // Close menu if you click anywhere else on the page
-            window.addEventListener("click", (e) => {
-                if (!btn.contains(e.target) && !menu.contains(e.target)) {
-                    menu.style.display = "none";
-                }
-            });
+                // Close menu if you click anywhere else on the page
+                window.addEventListener("click", (e) => {
+                    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                        menu.style.display = "none";
+                    }
+                });
+            }
         });
     </script>
+
+    <script src="script1.js"></script>
 </body>
 </html>
