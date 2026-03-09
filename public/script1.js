@@ -1,192 +1,127 @@
 const socket = io();
-
 const userId = localStorage.getItem("userId");
 const username = localStorage.getItem("username");
 
-let currentChatUserId = null;
-
 if (!userId) window.location.href = "index.html";
 
-// ----- REGISTER USER SOCKET -----
 socket.emit("register", userId);
+let currentChatUserId = null;
 
-/* ===== LOGOUT ===== */
-document.getElementById("logoutBtn").onclick = () => {
-    localStorage.clear();
-    window.location.href = "index.html";
-};
-
-/* ===== LOAD USERS & SEARCH ===== */
-const userListDiv = document.getElementById("userList");
-const searchInput = document.getElementById("searchUser");
-
+// ===== LOAD USERS =====
 async function loadUsers(search = "") {
-    try {
-        const res = await fetch(`/users?search=${search}&exclude=${userId}`);
-        const users = await res.json();
+  const res = await fetch(`/users?search=${search}`);
+  const users = await res.json();
+  const userList = document.getElementById("userList");
+  userList.innerHTML = "";
 
-        userListDiv.innerHTML = "";
+  users.forEach(user => {
+    if (user._id === userId) return;
 
-        users.forEach(u => {
-            const div = document.createElement("div");
-            div.classList.add("user");
-
-            // Create image element for profile photo
-            const img = document.createElement("img");
-            img.classList.add("user-photo");
-            img.src = u.photo || "default-avatar.png"; // fallback avatar if no photo
-            img.alt = u.username;
-
-            const span = document.createElement("span");
-            span.textContent = u.username;
-
-            div.appendChild(img);
-            div.appendChild(span);
-
-            div.onclick = () => {
-                currentChatUserId = u._id;
-                document.getElementById("chatWith").innerText = "Chat with " + u.username;
-                document.getElementById("messages").innerHTML = "";
-            };
-
-            userListDiv.appendChild(div);
-        });
-    } catch (err) {
-        console.error("Error loading users:", err);
-    }
-}
-
-searchInput.oninput = () => loadUsers(searchInput.value);
-loadUsers();
-
-/* ===== SEND MESSAGE ===== */
-document.getElementById("sendBtn").onclick = () => {
-    if (!currentChatUserId) return alert("Select a user to chat!");
-    const msg = document.getElementById("messageInput").value.trim();
-    if (!msg) return;
-
-    socket.emit("private message", { to: currentChatUserId, message: msg });
-    addMessage(msg, "sent");
-    document.getElementById("messageInput").value = "";
-};
-
-/* ===== RECEIVE MESSAGE ===== */
-socket.on("private message", ({ message, from }) => {
-    if (from === currentChatUserId) addMessage(message, "received");
-});
-
-function addMessage(msg, type) {
     const div = document.createElement("div");
-    div.classList.add("message", type);
-    div.textContent = msg;
-    const messages = document.getElementById("messages");
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    div.classList.add("user");
+    const userPhoto = user.profilePhoto || "https://i.imgur.com/4Z7Z8.png";
+    div.innerHTML = `<img src="${userPhoto}"><span>${user.username}</span>`;
+
+    div.addEventListener("click", async () => {
+      currentChatUserId = user._id;
+      document.getElementById("messages").innerHTML = "";
+
+      // Load past messages from DB
+      const msgRes = await fetch(`/messages?userId=${userId}&chatWith=${currentChatUserId}`);
+      const messages = await msgRes.json();
+      messages.forEach(m => addMessage(m.message, m.from === userId ? "sent" : "received"));
+
+      // Update chat header
+      const chatHeader = document.getElementById("chatWith");
+      chatHeader.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px;">
+          <img src="${userPhoto}" style="width:45px;height:45px;border-radius:50%;border:2px solid #2563eb;object-fit:cover;">
+          <div>
+            <p style="margin:0;font-weight:bold;color:white;">${user.username}</p>
+            <p style="margin:0;font-size:12px;color:#10b981;">Online</p>
+          </div>
+        </div>
+      `;
+    });
+
+    userList.appendChild(div);
+  });
 }
 
-/* ===== PROFILE MENU TOGGLE ===== */
-const profileBtn = document.getElementById("profileBtn");
-const profileMenu = document.getElementById("profileMenu");
+// ===== SEND MESSAGE =====
+document.getElementById("sendBtn").addEventListener("click", async () => {
+  const msgInput = document.getElementById("messageInput");
+  const message = msgInput.value.trim();
+  if (!message || !currentChatUserId) return;
 
-profileBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    // Toggles between showing the menu as a flex column or hiding it
-    if (profileMenu.style.display === "flex") {
-        profileMenu.style.display = "none";
-    } else {
-        profileMenu.style.display = "flex";
-    }
+  socket.emit("private message", { to: currentChatUserId, message });
+  addMessage(message, "sent");
+  msgInput.value = "";
 });
 
-// Close menu if user clicks anywhere else on the screen
-window.addEventListener("click", (e) => {
-    if (!profileBtn.contains(e.target) && !profileMenu.contains(e.target)) {
-        profileMenu.style.display = "none";
-    }
-});
-
-/* ===== UPLOAD PROFILE PHOTO ===== */
-document.getElementById("photoUpload").onchange = function () {
-    const file = this.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-        document.getElementById("profilePreview").src = e.target.result;
-        document.getElementById("profilePhoto").src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-
-    const formData = new FormData();
-    formData.append("photo", file);
-    formData.append("userId", userId);
-
-    fetch("/upload-photo", { method: "POST", body: formData })
-        .then(res => res.json())
-        .then(data => {
-            console.log("Photo uploaded:", data);
-            // Reload users to update photo in chat list
-            loadUsers(searchInput.value);
-        })
-        .catch(err => console.error("Upload error:", err));
-};
-
-/* ===== CHANGE USERNAME ===== */
-document.getElementById("changeUsername").onclick = async () => {
-    const name = prompt("Enter new username");
-    if (!name) return;
-
-    try {
-        await fetch("/change-username", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, username: name })
-        });
-        alert("Username updated");
-        loadUsers(searchInput.value); // refresh list
-    } catch (err) {
-        console.error("Username update error:", err);
-    }
-};
-
-/* ===== CHANGE EMAIL ===== */
-document.getElementById("changeEmail").onclick = async () => {
-    const email = prompt("Enter new email");
-    if (!email) return;
-
-    try {
-        await fetch("/change-email", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, email })
-        });
-        alert("Email updated");
-    } catch (err) {
-        console.error("Email update error:", err);
-    }
-};
-
-/* ===== CHANGE PASSWORD ===== */
-document.getElementById("changePassword").onclick = async () => {
-    const password = prompt("Enter new password");
-    if (!password) return;
-
-    try {
-        await fetch("/change-password", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, password })
-        });
-        alert("Password updated");
-    } catch (err) {
-        console.error("Password update error:", err);
-    }
-
-};
-
-// Add .off() before .on() to prevent duplicates
-socket.off("private message"); 
-
+// ===== RECEIVE MESSAGE =====
+socket.off("private message");
 socket.on("private message", ({ message, from }) => {
-    if (from === currentChatUserId) addMessage(message, "received");
+  if (from === currentChatUserId) addMessage(message, "received");
 });
+
+function addMessage(text, type) {
+  const messagesContainer = document.getElementById("messages");
+  const div = document.createElement("div");
+  div.classList.add("message", type);
+  div.innerText = text;
+  messagesContainer.appendChild(div);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// ===== SEARCH USERS =====
+document.getElementById("searchUser").addEventListener("input", e => loadUsers(e.target.value));
+
+// ===== PROFILE FUNCTIONS =====
+document.getElementById("photoUpload").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("photo", file);
+  formData.append("userId", userId);
+
+  const res = await fetch("/upload-photo", { method: "POST", body: formData });
+  const data = await res.json();
+  if (data.success) {
+    document.getElementById("profilePhoto").src = data.url;
+    document.getElementById("profilePreview").src = data.url;
+    alert("Profile photo updated!");
+  }
+});
+
+document.getElementById("changeUsername").addEventListener("click", async () => {
+  const newName = prompt("Enter new username:");
+  if (!newName) return;
+  await fetch("/change-username", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ userId, newUsername: newName }) });
+  localStorage.setItem("username", newName);
+  alert("Username updated!");
+  location.reload();
+});
+
+document.getElementById("changeEmail").addEventListener("click", async () => {
+  const newEmail = prompt("Enter new email:");
+  if (!newEmail) return;
+  await fetch("/change-email", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ userId, newEmail }) });
+  alert("Email updated!");
+});
+
+document.getElementById("changePassword").addEventListener("click", async () => {
+  const newPass = prompt("Enter new password:");
+  if (!newPass) return;
+  await fetch("/change-password", { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ userId, newPassword: newPass }) });
+  alert("Password updated!");
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  localStorage.clear();
+  window.location.href = "index.html";
+});
+
+// ===== INITIALIZE =====
+loadUsers();
