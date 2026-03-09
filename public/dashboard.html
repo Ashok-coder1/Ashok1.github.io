@@ -10,79 +10,59 @@
 <body>
 
 <!-- ================= PROFILE MENU ================= -->
-
 <div class="profile-container">
+  <button id="profileBtn" class="profile-btn">
+    <img id="profilePhoto" src="uploads/profile.jpg">
+    +Username
+  </button>
 
-<button id="profileBtn" class="profile-btn">
-<img id="profilePhoto" src="uploads/profile.jpg">
-My Profile
-</button>
+  <div id="profileMenu" class="profile-menu" style="display:none">
+    <div class="profile-photo-area">
+      <img id="profilePreview" src="uploads/profile.jpg">
+      <input type="file" id="photoUpload">
+    </div>
 
-<div id="profileMenu" class="profile-menu" style="display:none">
-
-<div class="profile-photo-area">
-<img id="profilePreview" src="uploads/profile.jpg">
-<input type="file" id="photoUpload">
-</div>
-
-<button id="changeUsername">Change Username</button>
-<button id="changeEmail">Change Email</button>
-<button id="changePassword">Change Password</button>
-<button id="logoutBtn" class="logoutBtn">Logout</button>
-
-</div>
-
+    <button id="changeUsername">Change Username</button>
+    <button id="changeEmail">Change Email</button>
+    <button id="changePassword">Change Password</button>
+    <button id="logoutBtn" class="logoutBtn">Logout</button>
+  </div>
 </div>
 
 <!-- ================= DASHBOARD ================= -->
-
 <div class="dashboard-container">
-
-<!-- ===== SIDEBAR ===== -->
-
-<div class="sidebar">
-
-<h2>Chats</h2>
-
-<input
-type="text"
-id="searchUser"
-class="search"
-placeholder="Search username...">
-
-<div id="userList" class="user-list"></div>
-
+  <div class="sidebar">
+    <h2>Chats</h2>
+    <input type="text" id="searchUser" class="search" placeholder="Search username...">
+    <div id="userList" class="user-list"></div>
+  </div>
 </div>
 
-</div> <!-- dashboard-container end -->
-
 <!-- ================= SOCKET ================= -->
-
 <script src="/socket.io/socket.io.js"></script>
 
-<!-- ================= PROFILE MENU SCRIPT ================= -->
-
 <script>
-document.addEventListener("DOMContentLoaded",()=>{
-  const btn = document.getElementById("profileBtn")
-  const menu = document.getElementById("profileMenu")
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("profileBtn");
+  const menu = document.getElementById("profileMenu");
 
-  btn.addEventListener("click",(e)=>{
-    e.stopPropagation()
-    menu.style.display = (menu.style.display==="none" || menu.style.display==="") ? "flex" : "none"
-  })
+  // Show username dynamically
+  const username = localStorage.getItem("username") || "User";
+  btn.innerHTML = `<img id="profilePhoto" src="uploads/profile.jpg">+${username}`;
 
-  window.addEventListener("click",(e)=>{
-    if(!btn.contains(e.target) && !menu.contains(e.target)){
-      menu.style.display="none"
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    menu.style.display = (menu.style.display === "none" || menu.style.display === "") ? "flex" : "none";
+  });
+
+  window.addEventListener("click", (e) => {
+    if (!btn.contains(e.target) && !menu.contains(e.target)) {
+      menu.style.display = "none";
     }
-  })
-})
+  });
+});
 </script>
 
-<!-- ================= MAIN JS ================= -->
-
 <script src="script1.js"></script>
-
 </body>
 </html>
