@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Gara Dashboard</title>
+    <link rel="stylesheet" href="style1.css">
+</head>
+<body>
+
+    <div class="profile-container">
+        <button id="profileBtn" class="profile-btn">
+            <img id="profilePhoto" src="https://i.imgur.com/4Z7Z8.png" />
+            My Profile
+        </button>
+
+        <div id="profileMenu" class="profile-menu" style="display: none;">
+            <div class="profile-photo-area">
+                <img id="profilePreview" src="https://i.imgur.com/4Z7Z8.png">
+                <input type="file" id="photoUpload">
+            </div>
+
+            <button id="changeUsername">Change Username</button>
+            <button id="changeEmail">Change Email</button>
+            <button id="changePassword">Change Password</button>
+            <button id="logoutBtn" class="logoutBtn">Logout</button>
+        </div>
+    </div>
+
+    <div class="dashboard-container">
+        <div class="sidebar">
+            <h2>Search Users</h2>
+            <input type="text" id="searchUser" class="search" placeholder="Search user...">
+            <div id="userList" class="user-list"></div>
+        </div>
+
+        <div class="chat">
+            <div class="chat-header">
+                <h3 id="chatWith">Select a user to chat</h3>
+            </div>
+            <div id="messages" class="messages"></div>
+            <div class="inputBox">
+                <input id="messageInput" placeholder="Type message...">
+                <button id="sendBtn">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script1.js"></script>
+
+    <script>
+        // SINGLE WORKING SCRIPT - DELETE THE OTHER TWO
+        document.addEventListener("DOMContentLoaded", () => {
+            const btn = document.getElementById("profileBtn");
+            const menu = document.getElementById("profileMenu");
+
+            btn.addEventListener("click", (e) => {
+                e.stopPropagation(); // Prevents the click from reaching the window
+                
+                // Toggle between none and flex
+                if (menu.style.display === "none" || menu.style.display === "") {
+                    menu.style.display = "flex";
+                } else {
+                    menu.style.display = "none";
+                }
+            });
+
+            // Close menu if you click anywhere else on the page
+            window.addEventListener("click", (e) => {
+                if (!btn.contains(e.target) && !menu.contains(e.target)) {
+                    menu.style.display = "none";
+                }
+            });
+        });
+    </script>
+</body>
+</html>

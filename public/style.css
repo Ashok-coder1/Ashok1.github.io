@@ -1,0 +1,177 @@
+/* ===== GLOBAL RESET ===== */
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+/* ===== BODY & BACKGROUND ===== */
+body{
+  min-height:100vh;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  background:linear-gradient(135deg,#000000,#0f172a,#1e3a8a);
+  overflow:hidden;
+  position:relative;
+}
+
+/* Animated 3D background */
+body::before{
+  content:"";
+  position:absolute;
+  width:600px;
+  height:600px;
+  background:radial-gradient(circle,#ff0000,#000000);
+  top:-200px;
+  left:-200px;
+  border-radius:50%;
+  filter:blur(120px);
+  animation:move1 10s infinite alternate;
+}
+
+body::after{
+  content:"";
+  position:absolute;
+  width:500px;
+  height:500px;
+  background:radial-gradient(circle,#2563eb,#000000);
+  bottom:-200px;
+  right:-200px;
+  border-radius:50%;
+  filter:blur(120px);
+  animation:move2 10s infinite alternate;
+}
+
+@keyframes move1{
+  0%{transform:translate(0,0)}
+  100%{transform:translate(100px,100px)}
+}
+
+@keyframes move2{
+  0%{transform:translate(0,0)}
+  100%{transform:translate(-100px,-100px)}
+}
+
+/* ===== CONTAINER ===== */
+.container{
+  perspective:1200px;
+  width:90%;
+  max-width:360px;
+  z-index:1;
+}
+
+/* ===== CARD ===== */
+.card{
+  width:100%;
+  min-height:500px; /* increased from 440px to fit buttons */
+  max-height:95vh;
+  position:relative;
+  transform-style:preserve-3d;
+  transition:transform 0.8s;
+}
+
+.card.flip{
+  transform:rotateY(180deg);
+}
+
+/* ===== GLASS PANELS ===== */
+.front,
+.back{
+  position:absolute;
+  width:100%;
+  height:100%;
+  padding:35px;
+  border-radius:20px;
+  background:rgba(255,255,255,0.08);
+  backdrop-filter:blur(15px);
+  border:1px solid rgba(255,255,255,0.2);
+  box-shadow:
+    0 0 25px rgba(0,0,0,0.5),
+    0 0 60px rgba(37,99,235,0.2);
+  backface-visibility:hidden;
+  color:white;
+}
+
+.back{
+  transform:rotateY(180deg);
+}
+
+/* ===== TITLE ===== */
+h2{
+  text-align:center;
+  margin-bottom:25px;
+  color:#ffffff;
+  letter-spacing:1px;
+}
+
+/* ===== INPUTS ===== */
+input{
+  width:100%;
+  padding:14px;
+  margin:10px 0;
+  border-radius:10px;
+  border:none;
+  outline:none;
+  background:rgba(255,255,255,0.1);
+  color:white;
+  font-size:14px;
+}
+
+input::placeholder{
+  color:#d1d5db;
+}
+
+/* ===== BUTTONS ===== */
+button{
+  width:100%;
+  padding:14px;
+  margin-top:10px;
+  border:none;
+  border-radius:10px;
+  background:linear-gradient(45deg,#ff0000,#2563eb);
+  color:white;
+  font-size:15px;
+  font-weight:bold;
+  cursor:pointer;
+  transition:0.3s;
+}
+
+button:hover{
+  transform:translateY(-2px);
+  box-shadow:0 10px 20px rgba(0,0,0,0.4);
+}
+
+/* ===== BOTTOM SWITCH TEXT ===== */
+.switch{
+  margin-top:18px;
+  text-align:center;
+  font-size:14px;
+  color:#e5e7eb;
+}
+
+.switch button{
+  background:none;
+  color:#3b82f6;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media (max-width: 400px){
+  .card{
+    min-height:470px; /* increased slightly for small screens */
+    max-height:90vh;
+  }
+  .front, .back{
+    padding:20px;
+  }
+  h2{
+    font-size:20px;
+  }
+  input, button{
+    font-size:13px;
+    padding:12px;
+  }
+}
