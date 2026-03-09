@@ -136,7 +136,7 @@ body {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 99999;
+  z-index: 999999;
   pointer-events: auto !important;
 }
 
@@ -150,7 +150,8 @@ body {
   background: linear-gradient(45deg,#ff0000,#2563eb);
   color: white;
   cursor: pointer;
-  z-index: 100000;
+  position: relative;
+  z-index: 1000000;
 }
 
 .profile-btn img {
@@ -251,3 +252,4 @@ body {
     margin-left: 0;
   }
 }
+
