@@ -15,6 +15,7 @@ body{
   background:linear-gradient(135deg,#000000,#0f172a,#1e3a8a);
   overflow:hidden;
   position:relative;
+  flex-direction:column; /* allow footer at bottom */
 }
 
 /* Animated 3D background */
@@ -60,12 +61,13 @@ body::after{
   width:90%;
   max-width:360px;
   z-index:1;
+  margin-bottom:30px; /* space for footer */
 }
 
 /* ===== CARD ===== */
 .card{
   width:100%;
-  min-height:500px; /* increased from 440px to fit buttons */
+  min-height:500px;
   max-height:95vh;
   position:relative;
   transform-style:preserve-3d;
@@ -158,10 +160,21 @@ button:hover{
   cursor:pointer;
 }
 
+/* ===== FOOTER ===== */
+footer{
+  width:100%;
+  text-align:center;
+  position:fixed;
+  bottom:0;
+  padding:5px 0;
+  font-size:12px;
+  color:#d1d5db;
+}
+
 /* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 400px){
   .card{
-    min-height:470px; /* increased slightly for small screens */
+    min-height:470px;
     max-height:90vh;
   }
   .front, .back{
