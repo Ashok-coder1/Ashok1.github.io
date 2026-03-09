@@ -3,26 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat</title>
+<title>Chat Gara</title>
 <link rel="stylesheet" href="chat.css">
 </head>
 <body>
 
 <div class="chat-container">
 
+  <!-- ===== CHAT HEADER ===== -->
   <div class="chat-header">
-  <button id="backBtn">← Back</button>
-  <img id="chatPhoto" class="chat-photo" src="uploads/profile.jpg">
-  <div>
-    <h3 id="chatName"></h3>
-    <span id="status">Offline</span>
+    <button id="backBtn">← Back</button>
+    <img id="chatUserPhoto" src="uploads/profile.jpg">
+    <div class="chat-user-info">
+      <span id="chatUserName">User</span>
+      <span id="chatUserStatus">⚫ Offline</span>
+    </div>
   </div>
-</div>
 
+  <!-- ===== MESSAGES AREA ===== -->
   <div id="messages" class="messages"></div>
 
+  <!-- ===== MESSAGE INPUT ===== -->
   <div class="inputBox">
-    <input id="messageInput" placeholder="Type message...">
+    <input type="text" id="messageInput" placeholder="Type a message...">
     <button id="sendBtn">Send</button>
   </div>
 
