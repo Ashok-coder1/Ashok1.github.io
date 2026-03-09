@@ -26,7 +26,8 @@ body {
   border-radius: 15px;
   overflow: hidden;
   position: relative;
-  z-index: 1;
+  z-index: 1; /* Keeps the dashboard as the bottom layer */
+  pointer-events: auto;
 }
 
 /* ===== SIDEBAR ===== */
@@ -131,12 +132,13 @@ body {
   cursor: pointer;
 }
 
-/* ===== PROFILE BUTTON & MENU ===== */
+/* ===== PROFILE BUTTON & MENU (FIXED) ===== */
 .profile-container {
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 999999;
+  /* Max z-index ensures it's above the dashboard and blur effect */
+  z-index: 2147483647 !important; 
   pointer-events: auto !important;
 }
 
@@ -149,9 +151,10 @@ body {
   border: none;
   background: linear-gradient(45deg,#ff0000,#2563eb);
   color: white;
-  cursor: pointer;
+  cursor: pointer !important;
   position: relative;
-  z-index: 1000000;
+  z-index: 2147483647 !important;
+  pointer-events: auto !important;
 }
 
 .profile-btn img {
@@ -159,32 +162,44 @@ body {
   height: 30px;
   border-radius: 50%;
   object-fit: cover;
+  pointer-events: none; /* Prevents image from blocking button clicks */
 }
 
-/* Ensure these specific lines are in your .profile-menu section */
 .profile-menu {
-    display: none; /* Stays hidden until clicked */
-    position: absolute; /* Changed from fixed to absolute to stay near button */
-    top: 55px;
-    right: 0;
-    width: 220px;
-    padding: 15px;
-    border-radius: 10px;
-    background: rgba(0, 0, 0, 0.95);
-    flex-direction: column; /* This puts buttons in a row (vertical) */
-    gap: 10px;
-    z-index: 10001;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+  display: none; 
+  position: absolute;
+  top: 55px;
+  right: 0;
+  width: 220px;
+  padding: 15px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.95);
+  flex-direction: column; 
+  gap: 10px;
+  /* Menu stays just under the button but above everything else */
+  z-index: 2147483646; 
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: auto !important;
 }
 
-/* Ensure buttons inside the menu take full width */
 .profile-menu button {
-    width: 100%;
-    text-align: left;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+}
+
+.profile-menu button:hover {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .profile-photo-area {
   text-align: center;
+  margin-bottom: 10px;
 }
 
 .profile-photo-area img {
@@ -200,32 +215,15 @@ body {
   padding: 5px;
   border-radius: 5px;
   cursor: pointer;
-}
-
-.profile-menu button {
-  padding: 10px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
   color: white;
-  cursor: pointer;
-}
-
-.profile-menu button:hover {
-  background: rgba(255, 255, 255, 0.2);
 }
 
 .logoutBtn {
-  background: #ff3b3b;
-}
-
-#profileBtn img {
-    pointer-events: none;
+  background: #ff3b3b !important;
 }
 
 /* ===== MOBILE RESPONSIVE ===== */
 @media(max-width: 700px) {
-
   .dashboard-container {
     flex-direction: column;
     height: 95vh;
@@ -252,4 +250,3 @@ body {
     margin-left: 0;
   }
 }
-
