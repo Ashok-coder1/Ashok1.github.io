@@ -1,159 +1,278 @@
-const socket = io();
-const userId = localStorage.getItem("userId");
-const username = localStorage.getItem("username");
-
-if (!userId) {
-    window.location.href = "index.html";
+/* ===== GLOBAL RESET ===== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', sans-serif;
 }
 
-socket.emit("register", userId);
-
-let currentChatUserId = null;
-
-// ===== LOAD USERS & VIEW PROFILES =====
-async function loadUsers(search = "") {
-    const res = await fetch(`/users?search=${search}`);
-    const users = await res.json();
-    const userList = document.getElementById("userList");
-    userList.innerHTML = "";
-
-    users.forEach(user => {
-        if (user._id !== userId) {
-            const div = document.createElement("div");
-            div.classList.add("user");
-            
-            // Set default photo if user doesn't have one
-            const userPhoto = user.profilePhoto || "https://i.imgur.com/4Z7Z8.png";
-            
-            div.innerHTML = `
-                <img src="${userPhoto}" style="width:35px; height:35px; border-radius:50%; margin-right:10px; object-fit: cover;">
-                <span>${user.username}</span>
-            `;
-            
-            div.onclick = () => {
-                currentChatUserId = user._id;
-                
-                // UPDATE CHAT HEADER TO VIEW OTHER USER'S PROFILE
-                const chatHeader = document.getElementById("chatWith");
-                chatHeader.innerHTML = `
-                    <div style="display:flex; align-items:center; gap:12px;">
-                        <img src="${userPhoto}" style="width:45px; height:45px; border-radius:50%; border: 2px solid #2563eb; object-fit: cover;">
-                        <div>
-                            <p style="margin:0; font-weight:bold; color:white;">${user.username}</p>
-                            <p style="margin:0; font-size:12px; color: #10b981;">Online</p>
-                        </div>
-                    </div>
-                `;
-                document.getElementById("messages").innerHTML = "";
-            };
-            userList.appendChild(div);
-        }
-    });
+/* ===== BODY & BACKGROUND ===== */
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #000, #0f172a, #1e3a8a);
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
-// ===== SEND MESSAGE (FIXED DUPLICATES) =====
-document.getElementById("sendBtn").onclick = () => {
-    const messageInput = document.getElementById("messageInput");
-    const message = messageInput.value.trim();
-    
-    if (!message || !currentChatUserId) return;
-
-    // Send to server via socket
-    socket.emit("private message", { to: currentChatUserId, message });
-
-    // Add to screen ONLY ONCE here
-    addMessage(message, "sent");
-    messageInput.value = "";
-};
-
-// ===== RECEIVE MESSAGE (FIXED DUPLICATES) =====
-socket.off("private message"); // This prevents the +Ram+Ram bug
-socket.on("private message", ({ message, from }) => {
-    // Only show the message if it's from the person you are currently talking to
-    if (from === currentChatUserId) {
-        addMessage(message, "received");
-    }
-});
-
-function addMessage(text, type) {
-    const messagesContainer = document.getElementById("messages");
-    const div = document.createElement("div");
-    div.classList.add("message", type);
-    div.innerText = text;
-    messagesContainer.appendChild(div);
-    
-    // Auto-scroll to the bottom
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+/* ===== DASHBOARD CONTAINER ===== */
+.dashboard-container {
+  width: 95%;
+  max-width: 1200px;
+  height: 90vh;
+  display: flex;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(15px);
+  border-radius: 15px;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
 }
 
-// ===== SEARCH USERS =====
-document.getElementById("searchUser").oninput = (e) => {
-    loadUsers(e.target.value);
-};
+/* ===== SIDEBAR ===== */
+.sidebar {
+  width: 260px;
+  padding: 20px;
+  color: white;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
 
-// ===== MY PROFILE SETTINGS =====
-document.getElementById("photoUpload").onchange = async (e) => {
-    const file = e.target.files[0];
-    if(!file) return;
+.search {
+  width: 100%;
+  padding: 10px;
+  margin: 10px 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
 
-    const formData = new FormData();
-    formData.append("photo", file);
-    formData.append("userId", userId);
+.user-list {
+  overflow-y: auto;
+  height: 75%;
+}
 
-    const res = await fetch("/upload-photo", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.success) {
-        document.getElementById("profilePhoto").src = data.url;
-        document.getElementById("profilePreview").src = data.url;
-        alert("Profile photo updated!");
-    }
-};
+/* ===== USER ITEM ===== */
+.user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 5px;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  color: white;
+}
 
-document.getElementById("changeUsername").onclick = async () => {
-    const newName = prompt("Enter new username:");
-    if (newName) {
-        const res = await fetch("/change-username", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, newUsername: newName })
-        });
-        const data = await res.json();
-        if (data.success) {
-            localStorage.setItem("username", newName);
-            alert("Username updated successfully!");
-            location.reload();
-        }
-    }
-};
+.user:hover {
+  background: rgba(37, 99, 235, 0.3);
+}
 
-document.getElementById("changeEmail").onclick = async () => {
-    const newEmail = prompt("Enter new email:");
-    if (newEmail) {
-        await fetch("/change-email", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, newEmail })
-        });
-        alert("Email change request processed!");
-    }
-};
+.user img {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  object-fit: cover;
+}
 
-document.getElementById("changePassword").onclick = async () => {
-    const newPass = prompt("Enter new password:");
-    if (newPass) {
-        await fetch("/change-password", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId, newPassword: newPass })
-        });
-        alert("Password updated successfully!");
-    }
-};
+/* ===== CHAT AREA ===== */
+.chat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
 
-document.getElementById("logoutBtn").onclick = () => {
-    localStorage.clear();
-    window.location.href = "index.html";
-};
+.chat-header {
+  padding: 15px;
+  color: white;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
 
-// Initialize the user list on load
-loadUsers();
+.messages {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message {
+  padding: 10px 15px;
+  border-radius: 20px;
+  max-width: 60%;
+  word-wrap: break-word;
+}
+
+.sent {
+  background: linear-gradient(45deg, #ff0000, #2563eb);
+  color: white;
+  align-self: flex-end;
+}
+
+.received {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  align-self: flex-start;
+}
+
+/* ===== MESSAGE INPUT ===== */
+.inputBox {
+  display: flex;
+  padding: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.inputBox input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 20px;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.inputBox button {
+  margin-left: 10px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(45deg, #ff0000, #2563eb);
+  color: white;
+  cursor: pointer;
+}
+
+/* ===== PROFILE BUTTON & MENU ===== */
+.profile-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 2147483647 !important;
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 15px;
+  border-radius: 20px;
+  border: none;
+  background: linear-gradient(45deg, #ff0000, #2563eb);
+  color: white;
+  cursor: pointer;
+  position: relative;
+  z-index: 2147483647 !important;
+}
+
+.profile-btn img {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Profile menu hidden by default, show with .show */
+.profile-menu {
+  display: none;
+  position: absolute;
+  top: 55px;
+  right: 0;
+  width: 220px;
+  padding: 15px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.95);
+  flex-direction: column;
+  gap: 10px;
+  z-index: 2147483646;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.profile-menu.show {
+  display: flex !important;
+}
+
+.profile-menu button {
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+}
+
+.profile-menu button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.profile-photo-area {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.profile-photo-area img {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  margin-bottom: 5px;
+  object-fit: cover;
+}
+
+.profile-menu input[type="file"] {
+  width: 100%;
+  padding: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: white;
+}
+
+.logoutBtn {
+  background: #ff3b3b !important;
+}
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media(max-width: 700px) {
+  .dashboard-container {
+    flex-direction: column;
+    height: 95vh;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: 200px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .chat {
+    flex: 1;
+  }
+
+  .inputBox {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .inputBox button {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .profile-container {
+    top: 10px;
+    right: 10px;
+  }
+
+  .profile-menu {
+    width: 180px;
+  }
+
+  .profile-photo-area img {
+    width: 60px;
+    height: 60px;
+  }
+}
