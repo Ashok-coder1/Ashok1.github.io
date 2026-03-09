@@ -15,25 +15,33 @@ const io = new Server(server);
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// ----- MongoDB connection -----
+// ===== MongoDB connection =====
 mongoose.connect(
-  "mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/?appName=Cluster1",
+  "mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/chatApp",
   { useNewUrlParser: true, useUnifiedTopology: true }
 )
   .then(() => console.log("MongoDB connected"))
   .catch(err => console.log("MongoDB connection error:", err));
 
-// ----- User Schema -----
+// ===== User Schema =====
 const userSchema = new mongoose.Schema({
   username: String,
   email: String,
   password: String,
-  photo: { type: String, default: "" } // store file path
+  photo: { type: String, default: "" }
 });
-
 const User = mongoose.model("User", userSchema);
 
-// ----- SIGN UP -----
+// ===== Message Schema =====
+const messageSchema = new mongoose.Schema({
+  from: String,
+  to: String,
+  message: String,
+  timestamp: { type: Date, default: Date.now }
+});
+const Message = mongoose.model("Message", messageSchema);
+
+// ===== SIGN UP =====
 app.post("/signup", async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -50,12 +58,12 @@ app.post("/signup", async (req, res) => {
 
     res.json({ success: true, message: "User created successfully" });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// ----- LOGIN -----
+// ===== LOGIN =====
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -67,12 +75,12 @@ app.post("/login", async (req, res) => {
 
     res.json({ success: true, username: user.username, userId: user._id, photo: user.photo });
   } catch (err) {
-    console.log(err);
+    console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// ----- GET USERS (search) -----
+// ===== GET USERS (SEARCH) =====
 app.get("/users", async (req, res) => {
   try {
     const { search = "", exclude } = req.query;
@@ -82,7 +90,24 @@ app.get("/users", async (req, res) => {
     const users = await User.find(query).select("_id username photo");
     res.json(users);
   } catch (err) {
-    console.log(err);
+    console.error(err);
+    res.status(500).json([]);
+  }
+});
+
+// ===== GET MESSAGES =====
+app.get("/messages", async (req, res) => {
+  try {
+    const { userId, chatWith } = req.query;
+    const messages = await Message.find({
+      $or: [
+        { from: userId, to: chatWith },
+        { from: chatWith, to: userId }
+      ]
+    }).sort({ timestamp: 1 }); // oldest first
+    res.json(messages);
+  } catch (err) {
+    console.error(err);
     res.status(500).json([]);
   }
 });
@@ -103,50 +128,49 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ----- CHANGE USERNAME -----
+// Change username
 app.post("/change-username", async (req, res) => {
   try {
     const { userId, username } = req.body;
     if (!username) return res.status(400).json({ success: false, message: "Username required" });
     await User.findByIdAndUpdate(userId, { username });
-    res.json({ success: true, message: "Username updated" });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false });
   }
 });
 
-// ----- CHANGE EMAIL -----
+// Change email
 app.post("/change-email", async (req, res) => {
   try {
     const { userId, email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: "Email required" });
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ success: false, message: "Email already used" });
-
     await User.findByIdAndUpdate(userId, { email });
-    res.json({ success: true, message: "Email updated" });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false });
   }
 });
 
-// ----- CHANGE PASSWORD -----
+// Change password
 app.post("/change-password", async (req, res) => {
   try {
     const { userId, password } = req.body;
     if (!password) return res.status(400).json({ success: false, message: "Password required" });
     const hashedPassword = await bcrypt.hash(password, 10);
     await User.findByIdAndUpdate(userId, { password: hashedPassword });
-    res.json({ success: true, message: "Password updated" });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ success: false, message: "Server error" });
+    res.status(500).json({ success: false });
   }
 });
 
-// ----- UPLOAD PROFILE PHOTO -----
+// Upload photo
 app.post("/upload-photo", upload.single("photo"), async (req, res) => {
   try {
     const { userId } = req.body;
@@ -155,16 +179,16 @@ app.post("/upload-photo", upload.single("photo"), async (req, res) => {
     const filePath = "/uploads/" + req.file.filename;
     await User.findByIdAndUpdate(userId, { photo: filePath });
 
-    res.json({ success: true, message: "Photo uploaded", path: filePath });
+    res.json({ success: true, url: filePath });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// ----- Socket.io private chat -----
-let onlineUsers = {};    // userId => socket.id
-let socketToUser = {};   // socket.id => userId
+// ===== SOCKET.IO PERSISTENT CHAT =====
+let onlineUsers = {}; // userId => socket.id
+let socketToUser = {}; // socket.id => userId
 
 io.on("connection", (socket) => {
 
@@ -175,12 +199,17 @@ io.on("connection", (socket) => {
   });
 
   // Private message
-  socket.on("private message", ({ to, message }) => {
+  socket.on("private message", async ({ to, message }) => {
+    const fromUserId = socketToUser[socket.id];
+    if (!fromUserId) return;
+
+    // Save message to DB
+    const newMessage = new Message({ from: fromUserId, to, message });
+    await newMessage.save();
+
+    // Emit to receiver if online
     const socketId = onlineUsers[to];
-    if (socketId) {
-      const fromUserId = socketToUser[socket.id];
-      io.to(socketId).emit("private message", { message, from: fromUserId });
-    }
+    if (socketId) io.to(socketId).emit("private message", { message, from: fromUserId });
   });
 
   // Disconnect
@@ -191,6 +220,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// ----- Start server -----
+// ===== START SERVER =====
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
