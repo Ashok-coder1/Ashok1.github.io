@@ -18,24 +18,27 @@ const statusEl = document.getElementById("status");
 
 chatNameEl.innerText = receiverName;
 
+// ================= MESSAGE SOUND =================
+const messageSound = new Audio("/sounds/message.mp3");
+
 // ================= LOAD RECEIVER INFO =================
 async function loadReceiverInfo() {
   try {
     const res = await fetch(`/user-info?id=${receiverId}`);
     const data = await res.json();
 
-    // Ensure a valid photo
     const photoUrl = data.photo && data.photo.trim() !== "" ? data.photo : "uploads/profile.jpg";
-
     chatPhotoEl.src = photoUrl;
 
-    // Force size and circular shape
     chatPhotoEl.style.width = "32px";
     chatPhotoEl.style.height = "32px";
     chatPhotoEl.style.borderRadius = "50%";
     chatPhotoEl.style.objectFit = "cover";
 
-    statusEl.innerText = data.online ? "🟢 Online" : "⚫ Offline";
+    // Online status dot
+    statusEl.innerHTML = data.online
+      ? '<span style="color:green">●</span> Online'
+      : '<span style="color:gray">●</span> Offline';
   } catch (err) {
     console.error("Failed to load receiver info:", err);
     chatPhotoEl.src = "uploads/profile.jpg";
@@ -54,7 +57,12 @@ async function loadMessages() {
     const res = await fetch(`/messages?userId=${userId}&chatWith=${receiverId}`);
     const messages = await res.json();
     messages.forEach(m =>
-      addMessage(m.message, m.from === userId ? "sent" : "received", m.timestamp)
+      addMessage(
+        m.message,
+        m.from === userId ? "sent" : "received",
+        m.timestamp,
+        m.seen && m.from === userId // show tick for sent messages if seen
+      )
     );
   } catch (err) {
     console.error("Failed to load messages:", err);
@@ -84,11 +92,23 @@ document.getElementById("messageInput").addEventListener("keypress", (e) => {
 socket.on("private message", ({ message, from, timestamp }) => {
   if (from === receiverId) {
     addMessage(message, "received", timestamp || new Date());
+    messageSound.play(); // Play sound
+
+    // ===== Push Notification =====
+    if (Notification.permission === "granted") {
+      new Notification(receiverName, {
+        body: message,
+        icon: chatPhotoEl.src
+      });
+    }
+
+    // Mark messages as seen
+    markMessagesSeen();
   }
 });
 
 // ================= ADD MESSAGE UI =================
-function addMessage(text, type, time) {
+function addMessage(text, type, time, seen = false) {
   const messages = document.getElementById("messages");
   const div = document.createElement("div");
   div.classList.add("message", type);
@@ -98,7 +118,36 @@ function addMessage(text, type, time) {
     minute: "2-digit",
   });
 
-  div.innerHTML = `<p>${text}</p><span class="time">${timeStr}</span>`;
+  let tick = "";
+  if (type === "sent") {
+    tick = seen
+      ? '<span class="tick">✔✔</span>'   // seen
+      : '<span class="tick">✔</span>';   // delivered
+  }
+
+  div.innerHTML = `<p>${text} ${tick}</p><span class="time">${timeStr}</span>`;
   messages.appendChild(div);
   messages.scrollTop = messages.scrollHeight;
+}
+
+// ================= MARK MESSAGES AS SEEN =================
+async function markMessagesSeen() {
+  try {
+    await fetch("/mark-seen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ from: receiverId, to: userId })
+    });
+
+    // Update ticks for sent messages
+    const messages = document.querySelectorAll(".message.sent .tick");
+    messages.forEach(t => t.innerText = "✔✔");
+  } catch (err) {
+    console.error("Failed to mark messages as seen:", err);
+  }
+}
+
+// Request notification permission if not granted
+if (Notification.permission !== "granted") {
+  Notification.requestPermission();
 }
