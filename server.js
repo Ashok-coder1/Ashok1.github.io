@@ -16,9 +16,9 @@ app.use(bodyParser.json());
 
 // ===== STATIC FILES =====
 app.use(express.static(path.join(__dirname, "public")));
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads'))); // Serve uploaded photos
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-// ===== MongoDB connection =====
+// ===== MONGODB CONNECTION =====
 mongoose.connect(
   "mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/chatApp",
   { useNewUrlParser: true, useUnifiedTopology: true }
@@ -31,10 +31,9 @@ const userSchema = new mongoose.Schema({
   username: String,
   email: String,
   password: String,
-  photo: { type: String, default: "/uploads/profile.jpg" }, // default profile photo
+  photo: { type: String, default: "/uploads/profile.jpg" },
   lastSeen: { type: Date, default: null }
 });
-
 const User = mongoose.model("User", userSchema);
 
 // ===== MESSAGE SCHEMA =====
@@ -45,7 +44,6 @@ const messageSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now },
   seen: { type: Boolean, default: false }
 });
-
 const Message = mongoose.model("Message", messageSchema);
 
 // ================= SIGNUP =================
@@ -61,16 +59,10 @@ app.post("/signup", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = new User({
-      username,
-      email,
-      password: hashedPassword
-    });
-
+    const user = new User({ username, email, password: hashedPassword });
     await user.save();
 
     res.json({ success: true });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ success: false });
@@ -81,7 +73,6 @@ app.post("/signup", async (req, res) => {
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const user = await User.findOne({ email });
     if (!user) return res.status(400).json({ success: false, message: "Invalid credentials" });
 
@@ -94,7 +85,6 @@ app.post("/login", async (req, res) => {
       userId: user._id,
       photo: user.photo
     });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ success: false });
@@ -106,14 +96,11 @@ app.get("/users", async (req, res) => {
   try {
     const { search = "", exclude } = req.query;
     let query = {};
-
     if (search) query.username = { $regex: search, $options: "i" };
     if (exclude && mongoose.isValidObjectId(exclude)) query._id = { $ne: exclude };
 
     const users = await User.find(query).select("_id username photo");
-
     res.json(users);
-
   } catch (err) {
     console.log(err);
     res.status(500).json([]);
@@ -124,16 +111,13 @@ app.get("/users", async (req, res) => {
 app.get("/messages", async (req, res) => {
   try {
     const { userId, chatWith } = req.query;
-
     const messages = await Message.find({
       $or: [
         { from: userId, to: chatWith },
         { from: chatWith, to: userId }
       ]
     }).sort({ timestamp: 1 });
-
     res.json(messages);
-
   } catch (err) {
     console.log(err);
     res.status(500).json([]);
@@ -155,14 +139,8 @@ app.delete("/delete-message/:id", async (req, res) => {
 app.post("/mark-seen", async (req, res) => {
   try {
     const { from, to } = req.body;
-
-    await Message.updateMany(
-      { from, to, seen: false },
-      { seen: true }
-    );
-
+    await Message.updateMany({ from, to, seen: false }, { seen: true });
     res.json({ success: true });
-
   } catch (err) {
     console.log(err);
     res.status(500).json({ success: false });
@@ -170,8 +148,6 @@ app.post("/mark-seen", async (req, res) => {
 });
 
 // ================= PROFILE UPDATE =================
-
-// multer upload
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, "public/uploads");
@@ -184,25 +160,20 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// change username
 app.post("/change-username", async (req, res) => {
   const { userId, username } = req.body;
   await User.findByIdAndUpdate(userId, { username });
   res.json({ success: true });
 });
 
-// change email
 app.post("/change-email", async (req, res) => {
   const { userId, email } = req.body;
-
-  const exists = await User.findOne({ email, _id: { $ne: userId } }); // exclude current user
+  const exists = await User.findOne({ email, _id: { $ne: userId } });
   if (exists) return res.status(400).json({ success: false });
-
   await User.findByIdAndUpdate(userId, { email });
   res.json({ success: true });
 });
 
-// change password
 app.post("/change-password", async (req, res) => {
   const { userId, password } = req.body;
   const hashed = await bcrypt.hash(password, 10);
@@ -210,55 +181,54 @@ app.post("/change-password", async (req, res) => {
   res.json({ success: true });
 });
 
-// upload photo
 app.post("/upload-photo", upload.single("photo"), async (req, res) => {
   const { userId } = req.body;
   const filePath = "/uploads/" + req.file.filename;
-
   await User.findByIdAndUpdate(userId, { photo: filePath });
-
   res.json({ success: true, url: filePath });
 });
 
 // ================= SOCKET.IO =================
-let onlineUsers = {};
-let socketToUser = {};
+let onlineUsers = {};       // { userId: socketId }
+let socketToUser = {};      // { socket.id: userId }
 
 io.on("connection", (socket) => {
-  // register
+
+  // REGISTER USER
   socket.on("register", (userId) => {
     onlineUsers[userId] = socket.id;
     socketToUser[socket.id] = userId;
-
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
-  // private message
-  socket.on("private message", async ({ to, message }) => {
+  // PRIVATE MESSAGE
+  socket.on("send-message", async ({ to, message }) => {
     const from = socketToUser[socket.id];
     if (!from) return;
 
+    const sender = await User.findById(from);
     const msg = new Message({ from, to, message });
     await msg.save();
 
     const receiverSocket = onlineUsers[to];
     if (receiverSocket) {
-      io.to(receiverSocket).emit("private message", {
+      io.to(receiverSocket).emit("receive-message", {
         _id: msg._id,
         message,
         from,
+        fromUsername: sender.username,
         timestamp: msg.timestamp
       });
     }
   });
 
-  // typing indicator
+  // TYPING INDICATOR
   socket.on("typing", (to) => {
     const receiverSocket = onlineUsers[to];
     if (receiverSocket) io.to(receiverSocket).emit("typing");
   });
 
-  // disconnect
+  // DISCONNECT
   socket.on("disconnect", async () => {
     const userId = socketToUser[socket.id];
     if (userId) {
@@ -268,6 +238,7 @@ io.on("connection", (socket) => {
     }
     delete socketToUser[socket.id];
   });
+
 });
 
 // ================= START SERVER =================
