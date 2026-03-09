@@ -1,34 +1,44 @@
 const socket = io();
 
 const userId = localStorage.getItem("userId");
-const username = localStorage.getItem("username");
+let username = localStorage.getItem("username") || "User";
 
-// If not logged in, redirect to login page
+// If user not logged in, redirect to login
 if (!userId) window.location.href = "index.html";
 
-// Register user with the server
-socket.emit("register", userId);
-
-// ================= ONLINE USERS =================
-let onlineUsers = [];
-
-// Get the other user's ID from URL (chat target)
+// Get target user info from URL
 const params = new URLSearchParams(window.location.search);
 const otherUserId = params.get("user");
 const otherUsername = params.get("name");
 
-// ================= DOM ELEMENTS =================
+// DOM elements
 const chatHeaderName = document.getElementById("chatUserName");
 const chatHeaderStatus = document.getElementById("chatUserStatus");
+const chatUserPhoto = document.getElementById("chatUserPhoto");
+const backBtn = document.getElementById("backBtn");
 const messagesContainer = document.getElementById("messages");
 const inputBox = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 
-// ================= SET CHAT HEADER =================
+// Show target username and default status
 if (chatHeaderName) chatHeaderName.textContent = otherUsername || "User";
 if (chatHeaderStatus) chatHeaderStatus.textContent = "⚫ Offline";
 
-// ================= LOAD ONLINE STATUS =================
+// Back button to dashboard
+backBtn.addEventListener("click", () => {
+  window.location.href = "dashboard.html";
+});
+
+// Connect user to server
+socket.emit("register", userId);
+
+// Track online users
+let onlineUsers = [];
+
+// Track unread messages
+let unreadMessages = {};
+
+// ================= ONLINE STATUS =================
 socket.on("online-users", (users) => {
   onlineUsers = users;
 
@@ -39,32 +49,49 @@ socket.on("online-users", (users) => {
       chatHeaderStatus.textContent = "⚫ Offline";
     }
   }
-
-  // Optionally, refresh user list badge if you implement it
 });
 
 // ================= SEND MESSAGE =================
-if (sendBtn && inputBox) {
-  sendBtn.addEventListener("click", () => {
-    const message = inputBox.value.trim();
-    if (!message) return;
+sendBtn.addEventListener("click", sendMessage);
+inputBox.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendMessage();
+});
 
-    socket.emit("send-message", {
-      from: userId,
-      to: otherUserId,
-      message,
-    });
+function sendMessage() {
+  const message = inputBox.value.trim();
+  if (!message) return;
 
-    // Append message locally
-    appendMessage(message, "sent");
-    inputBox.value = "";
+  // Send to server
+  socket.emit("send-message", {
+    from: userId,
+    to: otherUserId,
+    message,
+    fromUsername: username
   });
+
+  // Append locally
+  appendMessage(message, "sent");
+  inputBox.value = "";
 }
 
 // ================= RECEIVE MESSAGE =================
 socket.on("receive-message", (data) => {
   if (data.from === otherUserId) {
     appendMessage(data.message, "received");
+  } else {
+    // Increment unread count
+    unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
+    const badge = document.getElementById(`badge-${data.from}`);
+    if (badge) badge.textContent = `+${unreadMessages[data.from]}`;
+
+    // Notification
+    if (Notification.permission === "granted") {
+      new Notification(data.fromUsername, { body: data.message });
+    }
+
+    // Sound
+    const audio = new Audio("/notification.mp3");
+    audio.play();
   }
 });
 
@@ -72,36 +99,25 @@ socket.on("receive-message", (data) => {
 function appendMessage(msg, type) {
   const msgDiv = document.createElement("div");
   msgDiv.classList.add("message", type);
-  msgDiv.textContent = msg;
+
+  const textSpan = document.createElement("span");
+  textSpan.classList.add("message-text");
+  textSpan.textContent = msg;
 
   const timeSpan = document.createElement("span");
   timeSpan.classList.add("time");
   timeSpan.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+  // Add space between text and time
+  msgDiv.appendChild(textSpan);
+  msgDiv.appendChild(document.createTextNode("  "));
   msgDiv.appendChild(timeSpan);
+
   messagesContainer.appendChild(msgDiv);
-
-  // Scroll to bottom
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
-}
-
-// ================= LOGOUT =================
-const logoutBtn = document.getElementById("logoutBtn");
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", () => {
-    localStorage.clear();
-    window.location.href = "index.html";
-  });
 }
 
 // ================= NOTIFICATIONS =================
 if (Notification.permission !== "granted") {
   Notification.requestPermission();
-}
-
-// ================= OPTIONAL: Enter key to send =================
-if (inputBox) {
-  inputBox.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") sendBtn.click();
-  });
 }
