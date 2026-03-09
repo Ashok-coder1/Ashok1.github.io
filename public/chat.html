@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat</title>
+<link rel="stylesheet" href="chat.css">
+</head>
+<body>
+
+<div class="chat-container">
+
+  <div class="chat-header">
+  <button id="backBtn">← Back</button>
+  <img id="chatPhoto" class="chat-photo" src="uploads/profile.jpg">
+  <div>
+    <h3 id="chatName"></h3>
+    <span id="status">Offline</span>
+  </div>
+</div>
+
+  <div id="messages" class="messages"></div>
+
+  <div class="inputBox">
+    <input id="messageInput" placeholder="Type message...">
+    <button id="sendBtn">Send</button>
+  </div>
+
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="chat.js"></script>
+</body>
+</html>
