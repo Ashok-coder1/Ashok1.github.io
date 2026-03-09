@@ -9,12 +9,11 @@ document.getElementById("showLogin").onclick = () => {
   card.classList.remove("flip");
 };
 
-
 // ----- SIGN UP -----
 document.getElementById("signupForm").addEventListener("submit", async (e) => {
   e.preventDefault();
 
-  const username = document.getElementById("username").value.trim();
+  let username = document.getElementById("username").value.trim();
   const email = e.target[1].value.trim();
   const password = e.target[2].value.trim();
 
@@ -22,26 +21,22 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
     return alert("Please fill all fields");
   }
 
+  // Ensure only **one '+'**
   if (!username.startsWith("+")) {
-    return alert("Username must start with +");
+    username = "+" + username;
+  } else if (username.startsWith("++")) {
+    username = username.replace(/^(\++)/, "+");
   }
 
   try {
     const res = await fetch("/signup", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        username,
-        email,
-        password
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, email, password })
     });
 
     const data = await res.json();
-
-    alert(data.message);
+    alert(data.message || (data.success ? "Account created!" : "Signup failed"));
 
     if (data.success) {
       document.getElementById("signupForm").reset();
@@ -54,7 +49,6 @@ document.getElementById("signupForm").addEventListener("submit", async (e) => {
   }
 });
 
-
 // ----- LOGIN -----
 document.getElementById("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -62,31 +56,20 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
   const email = e.target[0].value.trim();
   const password = e.target[1].value.trim();
 
-  if (!email || !password) {
-    return alert("Please fill all fields");
-  }
+  if (!email || !password) return alert("Please fill all fields");
 
   try {
     const res = await fetch("/login", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        email,
-        password
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
     });
 
     const data = await res.json();
-
     if (data.success) {
-
       localStorage.setItem("userId", data.userId);
-      localStorage.setItem("username", data.username);
-
+      localStorage.setItem("username", data.username); // already correct +Ashok
       window.location.href = "dashboard.html";
-
     } else {
       alert(data.message || "Invalid credentials");
     }
