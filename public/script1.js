@@ -181,4 +181,12 @@ document.getElementById("changePassword").onclick = async () => {
     } catch (err) {
         console.error("Password update error:", err);
     }
+
 };
+
+// Add .off() before .on() to prevent duplicates
+socket.off("private message"); 
+
+socket.on("private message", ({ message, from }) => {
+    if (from === currentChatUserId) addMessage(message, "received");
+});
