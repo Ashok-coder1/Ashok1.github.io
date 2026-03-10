@@ -3,34 +3,224 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Gara</title>
-<link rel="stylesheet" href="style1.css">
+<title>Chat Gara Dashboard</title>
+<style>
+/* ===== GLOBAL RESET ===== */
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
+body{
+  min-height:100vh;
+  background:linear-gradient(135deg,#000,#0f172a,#1e3a8a);
+  display:flex; justify-content:center; align-items:center;
+}
+
+/* ===== DASHBOARD ===== */
+.dashboard-container{
+  width:95%; max-width:1200px; height:90vh;
+  background:rgba(255,255,255,0.05);
+  backdrop-filter:blur(15px);
+  border-radius:15px; display:flex; overflow:hidden;
+}
+.sidebar{ width:100%; padding:20px; color:white; display:flex; flex-direction:column; }
+.search{ width:100%; padding:10px; margin:10px 0; border-radius:8px; border:none; background:rgba(255,255,255,0.1); color:white; }
+.user-list{flex:1; overflow-y:auto;}
+.user{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;margin-bottom:6px;background:rgba(255,255,255,0.06);cursor:pointer;position:relative;color:white;}
+.user:hover{background:rgba(37,99,235,0.3);}
+.user-photo{width:40px;height:40px;border-radius:50%;object-fit:cover;}
+.user-info{display:flex;flex-direction:column;}
+.username{font-weight:600;}
+.status{font-size:12px;opacity:0.8;}
+.last-seen{font-size:10px;opacity:0.6;}
+.badge{position:absolute;right:10px;top:12px;background:#22c55e;color:white;font-size:12px;padding:2px 7px;border-radius:20px;min-width:20px;text-align:center;display:none;}
+
+/* ===== PROFILE BUTTON ===== */
+.profile-container { position:fixed; top:20px; right:20px; z-index:99999; }
+.profile-btn {
+  display:flex; align-items:center; gap:10px; padding:8px 15px;
+  border-radius:30px; border:none; color:white; cursor:pointer;
+  background:linear-gradient(45deg,#ff0000,#2563eb);
+}
+#profilePhoto { width:35px; height:35px; border-radius:50%; object-fit:cover; }
+
+/* ===== PROFILE MENU ===== */
+.profile-menu {
+  display:none; position:absolute; top:60px; right:0; width:220px;
+  background:#0f172a; padding:15px; border-radius:12px;
+  flex-direction:column; gap:10px; border:1px solid rgba(255,255,255,0.1);
+}
+.profile-menu button { width:100%; padding:10px; border-radius:8px; border:none; background:rgba(255,255,255,0.1); color:white; cursor:pointer; }
+.profile-menu button:hover{background:rgba(255,255,255,0.2);}
+#profilePreview { width:80px; height:80px; border-radius:50%; margin-bottom:10px; object-fit:cover; display:block; margin-left:auto;margin-right:auto;}
+
+/* ===== MOBILE ===== */
+@media(max-width:700px){.dashboard-container{flex-direction:column;height:95vh;}}
+</style>
 </head>
 <body>
 
+<!-- DASHBOARD -->
 <div class="dashboard-container">
-
-  <!-- ===== HEADER ===== -->
-  <div class="dashboard-header">
-    <img id="profilePhoto" src="uploads/profile.jpg" class="profile-photo">
-    <span id="usernameDisplay">+User</span>
-    <button id="logoutBtn">Logout</button>
+  <div class="sidebar">
+    <h2>Chats</h2>
+    <input type="text" id="searchUser" class="search" placeholder="Search username...">
+    <div id="userList"></div>
   </div>
-
-  <!-- ===== SEARCH USERS ===== -->
-  <input type="text" id="searchUser" placeholder="Search users..." class="search-input">
-
-  <!-- ===== USER LIST ===== -->
-  <div id="userList" class="user-list"></div>
-
-  <!-- ===== FOOTER ===== -->
-  <div class="dashboard-footer">
-    Powered by: <a href="https://www.webashok.com">Ashok Pokhrel</a>
-  </div>
-
 </div>
 
+<!-- PROFILE BUTTON & MENU -->
+<div class="profile-container">
+  <button id="profileBtn" class="profile-btn">
+    <img id="profilePhoto" src="uploads/profile.jpg">
+    <span id="usernameText">+Username</span>
+  </button>
+
+  <div id="profileMenu" class="profile-menu">
+    <div>
+      <img id="profilePreview" src="uploads/profile.jpg">
+      <input type="file" id="photoUpload" style="display:block; margin:0 auto 10px auto;">
+    </div>
+    <button id="changeUsername">Change Username</button>
+    <button id="changeEmail">Change Email</button>
+    <button id="changePassword">Change Password</button>
+    <button id="logoutBtn" style="background:#ff3b3b;">Logout</button>
+  </div>
+</div>
+
+<audio id="msgSound" src="sounds/message.mp3" preload="auto"></audio>
+
 <script src="/socket.io/socket.io.js"></script>
-<script src="script1.js"></script>
+<script>
+// ===== PROFILE MENU TOGGLE (UNCHANGED) =====
+const profileBtn = document.getElementById("profileBtn");
+const profileMenu = document.getElementById("profileMenu");
+
+profileBtn.addEventListener("click", e => {
+  e.stopPropagation();
+  profileMenu.style.display = profileMenu.style.display === "flex" ? "none" : "flex";
+});
+
+document.addEventListener("click", () => { profileMenu.style.display = "none"; });
+profileMenu.addEventListener("click", e => e.stopPropagation());
+
+const usernameSpan = document.getElementById("usernameText");
+let username = localStorage.getItem("username") || "User";
+usernameSpan.innerText = "+" + username;
+
+// ===== PROFILE PHOTO UPLOAD =====
+document.getElementById("photoUpload").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const formData = new FormData();
+  formData.append("photo", file);
+  formData.append("userId", localStorage.getItem("userId"));
+  const res = await fetch("/upload-photo", { method:"POST", body:formData });
+  const data = await res.json();
+  if(data.success){
+    document.getElementById("profilePhoto").src = data.url + "?t=" + new Date().getTime();
+    document.getElementById("profilePreview").src = data.url + "?t=" + new Date().getTime();
+    alert("Profile photo updated!");
+  }
+});
+
+// ===== CHANGE USERNAME / EMAIL / PASSWORD / LOGOUT =====
+document.getElementById("changeUsername").addEventListener("click", async () => {
+  const newName = prompt("Enter new username:");
+  if(!newName) return;
+  const cleanName = newName.startsWith("+") ? newName.slice(1) : newName;
+  await fetch("/change-username", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), username: cleanName })});
+  username = "+" + cleanName; usernameSpan.innerText = username; localStorage.setItem("username", cleanName);
+  alert("Username updated!");
+});
+
+document.getElementById("changeEmail").addEventListener("click", async () => {
+  const newEmail = prompt("Enter new email:"); if(!newEmail) return;
+  await fetch("/change-email", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), email: newEmail })});
+  alert("Email updated!");
+});
+
+document.getElementById("changePassword").addEventListener("click", async () => {
+  const newPass = prompt("Enter new password:"); if(!newPass) return;
+  await fetch("/change-password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), password: newPass })});
+  alert("Password updated!");
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => { localStorage.clear(); window.location.href="index.html"; });
+
+// ===== CHAT FEATURES =====
+const socket = io();
+const userId = localStorage.getItem("userId");
+let onlineUsers = [];
+let unreadMessages = {};
+
+// ===== FORMAT USERNAME =====
+function formatUsername(name){ return name.startsWith("+")?name:"+"+name; }
+
+// ===== LOAD USERS =====
+async function loadUsers(search=""){
+  const list = document.getElementById("userList");
+  if(search.trim()===""){ list.innerHTML=""; return; }
+  const res = await fetch(`/users?search=${search}&exclude=${userId}`);
+  const users = await res.json();
+  list.innerHTML="";
+  users.forEach(u=>{
+    const div = document.createElement("div");
+    div.classList.add("user");
+    const photo = u.photo || "uploads/profile.jpg";
+    const isOnline = onlineUsers.includes(u._id);
+    const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString() : "";
+
+    div.innerHTML = `
+      <img src="${photo}" class="user-photo">
+      <div class="user-info">
+        <span class="username">${formatUsername(u.username)}</span>
+        <span class="status">${isOnline?"🟢 Online":"⚫ Offline"}</span>
+        <span class="last-seen">${!isOnline && lastSeen?"Last seen: "+lastSeen:""}</span>
+      </div>
+      <span class="badge" id="badge-${u._id}">${unreadMessages[u._id]||""}</span>
+    `;
+    div.addEventListener("click", ()=>{
+      unreadMessages[u._id] = 0;
+      updateBadge(u._id);
+      window.location.href = `chat.html?user=${u._id}&name=${formatUsername(u.username)}`;
+    });
+    list.appendChild(div);
+    updateBadge(u._id);
+  });
+}
+
+// ===== UPDATE BADGE =====
+function updateBadge(id){
+  const badge = document.getElementById(`badge-${id}`);
+  if(!badge) return;
+  const count = unreadMessages[id]||0;
+  badge.textContent = count>0?count:"";
+  badge.style.display = count>0?"inline-block":"none";
+}
+
+// ===== ONLINE USERS =====
+socket.on("online-users", users=>{
+  onlineUsers = users;
+  loadUsers(document.getElementById("searchUser").value);
+});
+
+// ===== SEARCH USERS =====
+document.getElementById("searchUser").addEventListener("input", e=>loadUsers(e.target.value));
+
+// ===== MESSAGE SOUND & NOTIFICATIONS =====
+const msgSound = document.getElementById("msgSound");
+if(Notification.permission!=="granted"){ Notification.requestPermission(); }
+
+socket.on("receive-message", data=>{
+  if(!document.hidden){ msgSound.play(); 
+    if(Notification.permission==="granted"){
+      new Notification(`New message from ${formatUsername(data.fromName)}`, { body:data.message, icon:data.photo||"uploads/profile.jpg" });
+    }
+  } else {
+    unreadMessages[data.fromId] = (unreadMessages[data.fromId]||0)+1;
+    updateBadge(data.fromId);
+  }
+});
+
+</script>
+
 </body>
 </html>
