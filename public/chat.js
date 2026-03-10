@@ -11,7 +11,7 @@ const userList = document.getElementById("userList");
 const searchInput = document.getElementById("searchUser");
 const chatHeaderName = document.getElementById("chatName");
 const chatHeaderPhoto = document.getElementById("chatPhoto");
-const chatHeaderStatus = document.getElementById("chatStatus"); // Add this element in HTML for status
+const chatHeaderStatus = document.getElementById("chatStatus"); // must exist in HTML
 const messagesContainer = document.querySelector(".messages");
 const inputBox = document.querySelector(".inputBox input");
 const sendBtn = document.querySelector(".inputBox button");
@@ -38,7 +38,7 @@ function appendMessage(msg, seen = false) {
 
   let tickHTML = "";
   if (msg.from === userId) {
-    tickHTML = seen ? "✔✔" : "✔"; // single/double tick
+    tickHTML = seen ? "✔✔" : "✔";
   }
 
   div.innerHTML = `
@@ -60,7 +60,7 @@ async function loadUsers(search = "") {
     const div = document.createElement("div");
     div.classList.add("user");
 
-    const photo = user.photo || "uploads/profile.jpg";
+    const photo = user.photo || "/uploads/profile.jpg";
     const isOnline = onlineUsers.includes(user._id);
 
     div.innerHTML = `
@@ -96,7 +96,7 @@ async function loadUsers(search = "") {
         body: JSON.stringify({ from: user._id, to: userId })
       });
 
-      // Emit messageSeen event for real-time double tick
+      // Emit messageSeen event for double tick
       socket.emit("messageSeen", { from: user._id, to: userId });
     });
 
@@ -117,7 +117,7 @@ if (receiverId) {
   fetch(`/user?id=${receiverId}`)
     .then(res => res.json())
     .then(user => {
-      chatHeaderPhoto.src = user.photo || "uploads/profile.jpg";
+      chatHeaderPhoto.src = user.photo || "/uploads/profile.jpg";
       chatHeaderStatus.textContent = onlineUsers.includes(user._id)
         ? "🟢 Online"
         : `⚫ Offline - last seen ${user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A"}`;
@@ -135,15 +135,13 @@ if (receiverId) {
     body: JSON.stringify({ from: receiverId, to: userId })
   });
 
-  // Emit messageSeen event for double tick
+  // Emit messageSeen event
   socket.emit("messageSeen", { from: receiverId, to: userId });
 }
 
 // ===== SEND MESSAGE =====
 sendBtn.addEventListener("click", sendMessage);
-inputBox.addEventListener("keypress", (e) => {
-  if (e.key === "Enter") sendMessage();
-});
+inputBox.addEventListener("keypress", (e) => { if (e.key === "Enter") sendMessage(); });
 
 function sendMessage() {
   const msg = inputBox.value.trim();
@@ -160,7 +158,7 @@ socket.on("private message", (msg) => {
     appendMessage(msg, msg.seen);
     messageSound.play();
 
-    // Emit messageSeen event (server handles double tick)
+    // Emit messageSeen for double tick
     socket.emit("messageSeen", { from: msg.from, to: userId });
   } else {
     // Increment unread
@@ -168,12 +166,9 @@ socket.on("private message", (msg) => {
     const badge = document.getElementById(`badge-${msg.from}`);
     if (badge) badge.textContent = `+${unreadMessages[msg.from]}`;
 
-    // Notification
+    // Browser notification
     if (Notification.permission === "granted") {
-      new Notification("New Message", {
-        body: msg.message,
-        icon: "/uploads/profile.jpg"
-      });
+      new Notification("New Message", { body: msg.message, icon: "/uploads/profile.jpg" });
     }
 
     messageSound.play();
@@ -183,8 +178,8 @@ socket.on("private message", (msg) => {
 // ===== MESSAGE SEEN UPDATE =====
 socket.on("messageSeen", ({ from }) => {
   if (currentChatUserId === from) {
-    const msgs = messagesContainer.querySelectorAll(".sent .tick");
-    if (msgs.length) msgs[msgs.length - 1].textContent = "✔✔";
+    const sentTicks = messagesContainer.querySelectorAll(".sent .tick");
+    if (sentTicks.length) sentTicks[sentTicks.length - 1].textContent = "✔✔";
   }
 });
 
