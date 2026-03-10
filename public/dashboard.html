@@ -67,15 +67,14 @@ body{
 
 <div class="profile-container">
   <button id="profileBtn" class="profile-btn">
-    <img id="profilePhoto" src="uploads/profile.jpg">
+    <img id="profilePhoto" src="uploads/profile.webp">
     <span id="usernameText">+Username</span>
   </button>
 
   <div id="profileMenu" class="profile-menu">
     <div>
-      <img id="profilePreview" src="uploads/profile.jpg">
-      <input type="file" id="photoUpload" style="display:block; margin:0 auto 10px auto;">
-    </div>
+      <img id="profilePreview" src="uploads/profile.webp">
+      </div>
     <button id="changeUsername">Change Username</button>
     <button id="changeEmail">Change Email</button>
     <button id="changePassword">Change Password</button>
@@ -102,22 +101,6 @@ profileMenu.addEventListener("click", e => e.stopPropagation());
 const usernameSpan = document.getElementById("usernameText");
 let username = localStorage.getItem("username") || "User";
 usernameSpan.innerText = "+" + username;
-
-// ===== PROFILE PHOTO UPLOAD =====
-document.getElementById("photoUpload").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const formData = new FormData();
-  formData.append("photo", file);
-  formData.append("userId", localStorage.getItem("userId"));
-  const res = await fetch("/upload-photo", { method:"POST", body:formData });
-  const data = await res.json();
-  if(data.success){
-    document.getElementById("profilePhoto").src = data.url + "?t=" + new Date().getTime();
-    document.getElementById("profilePreview").src = data.url + "?t=" + new Date().getTime();
-    alert("Profile photo updated!");
-  }
-});
 
 // ===== CHANGE USERNAME / EMAIL / PASSWORD / LOGOUT =====
 document.getElementById("changeUsername").addEventListener("click", async () => {
@@ -155,15 +138,17 @@ function formatUsername(name){ return name.startsWith("+")?name:"+"+name; }
 // ===== LOAD USERS (FIXED: Runs on refresh) =====
 async function loadUsers(search=""){
   const list = document.getElementById("userList");
-  // Removed the check that cleared list when search was empty
   const res = await fetch(`/users?search=${search}&exclude=${userId}`);
   const users = await res.json();
   list.innerHTML="";
   users.forEach(u=>{
     const div = document.createElement("div");
     div.classList.add("user");
-    div.id = `user-${u._id}`; // Added ID for badge selection
-    const photo = u.photo || "uploads/profile.jpg";
+    div.id = `user-${u._id}`; 
+    
+    // Always use the default profile picture for every user
+    const photo = "uploads/profile.webp"; 
+    
     const isOnline = onlineUsers.includes(u._id);
     const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString() : "";
 
@@ -209,23 +194,16 @@ const msgSound = document.getElementById("msgSound");
 if(Notification.permission!=="granted"){ Notification.requestPermission(); }
 
 socket.on("private message", data => {
-  console.log("New message received");
   msgSound.play();
-  
-  // Update UI badge
   unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
   updateBadge(data.from);
 
-  // Browser Notification
   if (Notification.permission === "granted") {
     new Notification("New Message", {
       body: data.message,
-      icon: "uploads/profile.jpg"
+      icon: "uploads/profile.webp"
     });
   }
-  
-  // Refresh list to show latest status/order if needed
-  // loadUsers(document.getElementById("searchUser").value); 
 });
 
 // Register user
