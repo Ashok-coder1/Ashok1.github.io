@@ -16,6 +16,7 @@ body{
 /* ===== DASHBOARD ===== */
 .dashboard-container{
   width:95%; max-width:1200px; height:90vh;
+
   background:rgba(255,255,255,0.05);
   backdrop-filter:blur(15px);
   border-radius:15px; display:flex; overflow:hidden;
@@ -52,7 +53,21 @@ body{
 #profilePreview { width:80px; height:80px; border-radius:50%; margin-bottom:10px; object-fit:cover; display:block; margin-left:auto;margin-right:auto;}
 
 /* ===== MOBILE ===== */
-@media(max-width:700px){.dashboard-container{flex-direction:column;height:95vh;}}
+@media(max-width:700px){
+
+  body{
+    align-items:flex-start;
+    padding-top:60px;
+  }
+
+  .dashboard-container{
+    height:92vh;
+  }
+
+  .profile-container{
+    top:66px; /* move profile button down */
+  }
+}
 </style>
 </head>
 <body>
@@ -211,6 +226,10 @@ socket.emit("register", userId);
 
 // INITIAL LOAD ON PAGE START
 loadUsers();
+
+window.addEventListener("DOMContentLoaded", () => {
+    loadUsers(); // automatically loads all users when dashboard opens
+});
 
 </script>
 </body>
