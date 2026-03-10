@@ -1,81 +1,48 @@
 const card = document.getElementById("card");
+const showSignup = document.getElementById("showSignup");
+const showLogin = document.getElementById("showLogin");
+const signupForm = document.getElementById("signupForm");
+const loginForm = document.getElementById("loginForm");
 
-// ----- CARD FLIP -----
-document.getElementById("showSignup").onclick = () => {
-  card.classList.add("flip");
-};
+showSignup.onclick = ()=> card.classList.add("flip");
+showLogin.onclick = ()=> card.classList.remove("flip");
 
-document.getElementById("showLogin").onclick = () => {
-  card.classList.remove("flip");
-};
-
-// ----- SIGN UP -----
-document.getElementById("signupForm").addEventListener("submit", async (e) => {
+/* SIGNUP */
+signupForm.addEventListener("submit", async e => {
   e.preventDefault();
-
+  const btn = document.getElementById("signupBtn");
+  const error = document.getElementById("signupError");
+  error.textContent="";
   let username = document.getElementById("username").value.trim();
-  const email = e.target[1].value.trim();
-  const password = e.target[2].value.trim();
-
-  if (!username || !email || !password) {
-    return alert("Please fill all fields");
-  }
-
-  // Ensure only **one '+'**
-  if (!username.startsWith("+")) {
-    username = "+" + username;
-  } else if (username.startsWith("++")) {
-    username = username.replace(/^(\++)/, "+");
-  }
-
-  try {
-    const res = await fetch("/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password })
-    });
-
+  const email = signupForm.querySelector('input[type="email"]').value.trim();
+  const password = signupForm.querySelector('input[type="password"]').value.trim();
+  if(!username||!email||!password){ error.textContent="Please fill all fields"; return;}
+  username = username.replace(/^\++/,"+"); if(!username.startsWith("+")) username="+"+username;
+  btn.classList.add("loading"); btn.textContent="Creating...";
+  try{
+    const res = await fetch("/signup",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,email,password})});
     const data = await res.json();
-    alert(data.message || (data.success ? "Account created!" : "Signup failed"));
-
-    if (data.success) {
-      document.getElementById("signupForm").reset();
-      card.classList.remove("flip"); // go back to login
-    }
-
-  } catch (error) {
-    console.error("Signup error:", error);
-    alert("Server error. Please try again.");
-  }
+    if(data.success){ signupForm.reset(); card.classList.remove("flip"); }
+    else error.textContent=data.message||"Signup failed";
+  }catch{ error.textContent="Server error"; }
+  btn.classList.remove("loading"); btn.textContent="Register";
 });
 
-// ----- LOGIN -----
-document.getElementById("loginForm").addEventListener("submit", async (e) => {
+/* LOGIN */
+loginForm.addEventListener("submit", async e => {
   e.preventDefault();
-
-  const email = e.target[0].value.trim();
-  const password = e.target[1].value.trim();
-
-  if (!email || !password) return alert("Please fill all fields");
-
-  try {
-    const res = await fetch("/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
-    });
-
+  const btn = document.getElementById("loginBtn");
+  const error = document.getElementById("loginError");
+  error.textContent="";
+  const email = loginForm.querySelector('input[type="email"]').value.trim();
+  const password = loginForm.querySelector('input[type="password"]').value.trim();
+  if(!email||!password){ error.textContent="Please fill all fields"; return; }
+  btn.classList.add("loading"); btn.textContent="Logging in...";
+  try{
+    const res = await fetch("/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,password})});
     const data = await res.json();
-    if (data.success) {
-      localStorage.setItem("userId", data.userId);
-      localStorage.setItem("username", data.username); // already correct +Ashok
-      window.location.href = "dashboard.html";
-    } else {
-      alert(data.message || "Invalid credentials");
-    }
-
-  } catch (error) {
-    console.error("Login error:", error);
-    alert("Server error. Please try again.");
-  }
+    if(data.success){ localStorage.setItem("userId",data.userId); localStorage.setItem("username",data.username); window.location.href="dashboard.html"; }
+    else error.textContent=data.message||"Invalid email or password";
+  }catch{ error.textContent="Server error"; }
+  btn.classList.remove("loading"); btn.textContent="Login";
 });
