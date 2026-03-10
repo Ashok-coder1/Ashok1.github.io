@@ -54,7 +54,7 @@ app.post("/signup", async (req, res) => {
     if (!username.startsWith("+"))
       return res.status(400).json({ success: false, message: "Username must start with +" });
 
-    username = username.slice(1); // remove '+' for DB
+    username = username.slice(1); // remove '+'
 
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ success: false, message: "Email already registered" });
@@ -109,15 +109,12 @@ app.get("/users", async (req, res) => {
   }
 });
 
-// ================= GET SINGLE USER INFO =================
+// ================= GET SINGLE USER =================
 app.get("/user", async (req, res) => {
   try {
     const { id } = req.query;
-    if (!id) return res.status(400).json({ success: false, message: "User ID required" });
-
     const user = await User.findById(id).select("_id username photo lastSeen");
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
-
+    if (!user) return res.status(404).json({ success: false });
     res.json(user);
   } catch (err) {
     console.log(err);
@@ -211,9 +208,6 @@ app.post("/upload-photo", upload.single("photo"), async (req, res) => {
     const ext = path.extname(req.file.originalname);
     const filename = `${userId}_${Date.now()}${ext}`;
     const dir = path.join(__dirname, "public/uploads");
-
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
     const newPath = path.join(dir, filename);
     fs.renameSync(req.file.path, newPath);
 
@@ -232,7 +226,6 @@ let onlineUsers = {};       // { userId: socketId }
 let socketToUser = {};      // { socket.id: userId }
 
 io.on("connection", (socket) => {
-
   // REGISTER USER
   socket.on("register", (userId) => {
     onlineUsers[userId] = socket.id;
@@ -251,14 +244,22 @@ io.on("connection", (socket) => {
 
     const receiverSocket = onlineUsers[to];
     if (receiverSocket) {
-      io.to(receiverSocket).emit("receive-message", {
+      io.to(receiverSocket).emit("private message", {
         _id: msg._id,
         message,
         from,
         fromUsername: sender.username,
-        timestamp: msg.timestamp
+        timestamp: msg.timestamp,
+        seen: false
       });
     }
+  });
+
+  // MESSAGE SEEN EVENT
+  socket.on("messageSeen", async ({ from, to }) => {
+    await Message.updateMany({ from, to, seen: false }, { seen: true });
+    const senderSocket = onlineUsers[from];
+    if (senderSocket) io.to(senderSocket).emit("messageSeen", { from: to });
   });
 
   // TYPING INDICATOR
@@ -277,7 +278,6 @@ io.on("connection", (socket) => {
     }
     delete socketToUser[socket.id];
   });
-
 });
 
 // ================= START SERVER =================
