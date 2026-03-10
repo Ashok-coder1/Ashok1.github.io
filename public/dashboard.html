@@ -3,66 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Gara Dashboard</title>
+<title>Chat Gara</title>
 <link rel="stylesheet" href="style1.css">
 </head>
-
 <body>
 
-<!-- ================= PROFILE MENU ================= -->
-<div class="profile-container">
-  <button id="profileBtn" class="profile-btn">
-    <img id="profilePhoto" src="uploads/profile.jpg">
-    +Username
-  </button>
-
-  <div id="profileMenu" class="profile-menu" style="display:none">
-    <div class="profile-photo-area">
-      <img id="profilePreview" src="uploads/profile.jpg">
-      <input type="file" id="photoUpload">
-    </div>
-
-    <button id="changeUsername">Change Username</button>
-    <button id="changeEmail">Change Email</button>
-    <button id="changePassword">Change Password</button>
-    <button id="logoutBtn" class="logoutBtn">Logout</button>
-  </div>
-</div>
-
-<!-- ================= DASHBOARD ================= -->
 <div class="dashboard-container">
-  <div class="sidebar">
-    <h2>Chats</h2>
-    <input type="text" id="searchUser" class="search" placeholder="Search username...">
-    <div id="userList" class="user-list"></div>
+
+  <!-- ===== HEADER ===== -->
+  <div class="dashboard-header">
+    <img id="profilePhoto" src="uploads/profile.jpg" class="profile-photo">
+    <span id="usernameDisplay">+User</span>
+    <button id="logoutBtn">Logout</button>
   </div>
+
+  <!-- ===== SEARCH USERS ===== -->
+  <input type="text" id="searchUser" placeholder="Search users..." class="search-input">
+
+  <!-- ===== USER LIST ===== -->
+  <div id="userList" class="user-list"></div>
+
+  <!-- ===== FOOTER ===== -->
+  <div class="dashboard-footer">
+    Powered by: <a href="https://www.webashok.com">Ashok Pokhrel</a>
+  </div>
+
 </div>
 
-<!-- ================= SOCKET ================= -->
 <script src="/socket.io/socket.io.js"></script>
-
-<script>
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("profileBtn");
-  const menu = document.getElementById("profileMenu");
-
-  // Show username dynamically
-  const username = localStorage.getItem("username") || "User";
-  btn.innerHTML = `<img id="profilePhoto" src="uploads/profile.jpg">+${username}`;
-
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    menu.style.display = (menu.style.display === "none" || menu.style.display === "") ? "flex" : "none";
-  });
-
-  window.addEventListener("click", (e) => {
-    if (!btn.contains(e.target) && !menu.contains(e.target)) {
-      menu.style.display = "none";
-    }
-  });
-});
-</script>
-
 <script src="script1.js"></script>
 </body>
 </html>
