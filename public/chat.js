@@ -27,7 +27,7 @@ let unreadMessages = {}; // { userId: count }
 const messageSound = new Audio("/sounds/message.mp3");
 
 // ===== HELPER FUNCTIONS =====
-function appendMessage(msg) {
+function appendMessage(msg, seen = false) {
   const div = document.createElement("div");
   div.classList.add("message");
   div.classList.add(msg.from === userId ? "sent" : "received");
@@ -36,8 +36,13 @@ function appendMessage(msg) {
   const hours = time.getHours().toString().padStart(2, "0");
   const minutes = time.getMinutes().toString().padStart(2, "0");
 
+  let tickHTML = "";
+  if (msg.from === userId) {
+    tickHTML = seen ? "✔✔" : "✔"; // single/double tick
+  }
+
   div.innerHTML = `
-    ${msg.message} <span class="time">${hours}:${minutes}</span>
+    ${msg.message} <span class="time">${hours}:${minutes}</span> <span class="tick">${tickHTML}</span>
   `;
 
   messagesContainer.appendChild(div);
@@ -62,7 +67,7 @@ async function loadUsers(search = "") {
       <img src="${photo}" class="user-photo">
       <div class="user-info">
         <span class="username">${user.username}</span>
-        <span class="status">${isOnline ? "🟢 Online" : `⚫ Offline - last seen ${new Date(user.lastSeen).toLocaleString()}`}</span>
+        <span class="status">${isOnline ? "🟢 Online" : `⚫ Offline - last seen ${user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A"}`}</span>
       </div>
       <span class="badge" id="badge-${user._id}">${unreadMessages[user._id] ? `+${unreadMessages[user._id]}` : ""}</span>
     `;
@@ -71,7 +76,7 @@ async function loadUsers(search = "") {
       currentChatUserId = user._id;
       chatHeaderName.textContent = user.username;
       chatHeaderPhoto.src = photo;
-      chatHeaderStatus.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${new Date(user.lastSeen).toLocaleString()}`;
+      chatHeaderStatus.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A"}`;
       messagesContainer.innerHTML = "";
 
       // Reset unread badge
@@ -82,7 +87,7 @@ async function loadUsers(search = "") {
       // Load messages
       const msgRes = await fetch(`/messages?userId=${userId}&chatWith=${user._id}`);
       const messages = await msgRes.json();
-      messages.forEach(m => appendMessage(m));
+      messages.forEach(m => appendMessage(m, m.seen));
 
       // Mark messages as seen
       await fetch("/mark-seen", {
@@ -90,6 +95,9 @@ async function loadUsers(search = "") {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from: user._id, to: userId })
       });
+
+      // Emit messageSeen event for real-time double tick
+      socket.emit("messageSeen", { from: user._id, to: userId });
     });
 
     userList.appendChild(div);
@@ -112,13 +120,13 @@ if (receiverId) {
       chatHeaderPhoto.src = user.photo || "uploads/profile.jpg";
       chatHeaderStatus.textContent = onlineUsers.includes(user._id)
         ? "🟢 Online"
-        : `⚫ Offline - last seen ${new Date(user.lastSeen).toLocaleString()}`;
+        : `⚫ Offline - last seen ${user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A"}`;
     });
 
   // Load existing messages
   fetch(`/messages?userId=${userId}&chatWith=${receiverId}`)
     .then(res => res.json())
-    .then(messages => messages.forEach(m => appendMessage(m)));
+    .then(messages => messages.forEach(m => appendMessage(m, m.seen)));
 
   // Mark as seen
   fetch("/mark-seen", {
@@ -126,6 +134,9 @@ if (receiverId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ from: receiverId, to: userId })
   });
+
+  // Emit messageSeen event for double tick
+  socket.emit("messageSeen", { from: receiverId, to: userId });
 }
 
 // ===== SEND MESSAGE =====
@@ -138,18 +149,18 @@ function sendMessage() {
   const msg = inputBox.value.trim();
   if (!msg || !currentChatUserId) return;
 
-  socket.emit("private message", { to: currentChatUserId, message: msg });
-  appendMessage({ from: userId, message: msg, timestamp: new Date() });
+  socket.emit("send-message", { to: currentChatUserId, message: msg });
+  appendMessage({ from: userId, message: msg, timestamp: new Date() }); // single tick by default
   inputBox.value = "";
 }
 
 // ===== RECEIVE MESSAGE =====
 socket.on("private message", (msg) => {
   if (currentChatUserId === msg.from) {
-    appendMessage(msg);
+    appendMessage(msg, msg.seen);
     messageSound.play();
 
-    // Emit message seen event (server will handle double tick)
+    // Emit messageSeen event (server handles double tick)
     socket.emit("messageSeen", { from: msg.from, to: userId });
   } else {
     // Increment unread
@@ -172,7 +183,8 @@ socket.on("private message", (msg) => {
 // ===== MESSAGE SEEN UPDATE =====
 socket.on("messageSeen", ({ from }) => {
   if (currentChatUserId === from) {
-    // TODO: update last sent message tick to double (requires front-end tick icon)
+    const msgs = messagesContainer.querySelectorAll(".sent .tick");
+    if (msgs.length) msgs[msgs.length - 1].textContent = "✔✔";
   }
 });
 
