@@ -50,17 +50,13 @@ const Message = mongoose.model("Message", messageSchema);
 app.post("/signup", async (req, res) => {
   try {
     let { username, email, password } = req.body;
-
-    if (!username.startsWith("+"))
-      return res.status(400).json({ success: false, message: "Username must start with +" });
+    if (!username.startsWith("+")) return res.status(400).json({ success: false, message: "Username must start with +" });
 
     username = username.slice(1); // remove '+'
-
     const exists = await User.findOne({ email });
     if (exists) return res.status(400).json({ success: false, message: "Email already registered" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const user = new User({ username, email, password: hashedPassword });
     await user.save();
 
@@ -139,17 +135,6 @@ app.get("/messages", async (req, res) => {
   }
 });
 
-// ================= DELETE MESSAGE =================
-app.delete("/delete-message/:id", async (req, res) => {
-  try {
-    await Message.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ success: false });
-  }
-});
-
 // ================= MARK MESSAGE SEEN =================
 app.post("/mark-seen", async (req, res) => {
   try {
@@ -162,7 +147,7 @@ app.post("/mark-seen", async (req, res) => {
   }
 });
 
-// ================= PROFILE UPDATE =================
+// ================= PROFILE PHOTO UPLOAD =================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(__dirname, "public/uploads");
@@ -175,31 +160,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ================= CHANGE USERNAME =================
-app.post("/change-username", async (req, res) => {
-  const { userId, username } = req.body;
-  await User.findByIdAndUpdate(userId, { username });
-  res.json({ success: true });
-});
-
-// ================= CHANGE EMAIL =================
-app.post("/change-email", async (req, res) => {
-  const { userId, email } = req.body;
-  const exists = await User.findOne({ email, _id: { $ne: userId } });
-  if (exists) return res.status(400).json({ success: false });
-  await User.findByIdAndUpdate(userId, { email });
-  res.json({ success: true });
-});
-
-// ================= CHANGE PASSWORD =================
-app.post("/change-password", async (req, res) => {
-  const { userId, password } = req.body;
-  const hashed = await bcrypt.hash(password, 10);
-  await User.findByIdAndUpdate(userId, { password: hashed });
-  res.json({ success: true });
-});
-
-// ================= UPLOAD PROFILE PHOTO =================
 app.post("/upload-photo", upload.single("photo"), async (req, res) => {
   try {
     const { userId } = req.body;
