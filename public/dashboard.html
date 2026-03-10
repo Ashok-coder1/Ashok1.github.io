@@ -205,21 +205,27 @@ socket.on("userStatusChanged", () => loadUsers(searchInput.value));
 // 4. Manual Search
 searchInput.addEventListener("input", e=>loadUsers(e.target.value));
 
-// ===== NOTIFICATIONS & SOUND =====
-const msgSound = document.getElementById("msgSound");
-if(Notification.permission!=="granted"){ Notification.requestPermission(); }
-
+// ===== MERGED NOTIFICATIONS & SOUND (CLEAN VERSION) =====
 socket.on("private message", data => {
-  msgSound.play();
-  unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
-  updateBadge(data.from);
+    // 1. Play sound & Vibrate (Wakes up the Android WebView)
+    msgSound.play();
+    if (navigator.vibrate) {
+        navigator.vibrate(200);
+    }
 
-  if (Notification.permission === "granted") {
-    new Notification("New Message", {
-      body: data.message,
-      icon: "uploads/profile.webp"
-    });
-  }
+    // 2. Update the unread count
+    unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
+
+    // 3. Force the UI to refresh (Shows the green badge immediately)
+    loadUsers(searchInput.value); 
+
+    // 4. Show System Notification
+    if (Notification.permission === "granted") {
+        new Notification("New Message", {
+            body: data.message,
+            icon: "uploads/profile.webp"
+        });
+    }
 });
 
 // Initial backup load
