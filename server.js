@@ -1,248 +1,205 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const mongoose = require("mongoose");
-const bodyParser = require("body-parser");
-const path = require("path");
-const bcrypt = require("bcrypt");
-const multer = require("multer");
-const fs = require("fs");
+const socket = io();
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
+// ===== USER INFO =====
+const userId = localStorage.getItem("userId");
+let username = localStorage.getItem("username");
 
-app.use(bodyParser.json());
+if (!userId) window.location.href = "index.html";
 
-// ===== STATIC FILES =====
-app.use(express.static(path.join(__dirname, "public")));
-app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+// ===== ELEMENTS =====
+const userList = document.getElementById("userList");
+const searchInput = document.getElementById("searchUser");
+const chatHeaderName = document.getElementById("chatName");
+const chatHeaderPhoto = document.getElementById("chatPhoto");
+const chatHeaderStatus = document.getElementById("chatStatus"); // Add this element in HTML for status
+const messagesContainer = document.querySelector(".messages");
+const inputBox = document.querySelector(".inputBox input");
+const sendBtn = document.querySelector(".inputBox button");
 
-// ===== MONGODB CONNECTION =====
-mongoose.connect(
-  "mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/chatApp",
-  { useNewUrlParser: true, useUnifiedTopology: true }
-)
-.then(() => console.log("MongoDB connected"))
-.catch(err => console.log("MongoDB error:", err));
+// ===== ONLINE USERS =====
+let onlineUsers = [];
+let currentChatUserId = null;
 
-// ===== USER SCHEMA =====
-const userSchema = new mongoose.Schema({
-  username: String,
-  email: String,
-  password: String,
-  photo: { type: String, default: "/uploads/profile.jpg" },
-  lastSeen: { type: Date, default: null }
-});
-const User = mongoose.model("User", userSchema);
+// ===== UNREAD MESSAGES =====
+let unreadMessages = {}; // { userId: count }
 
-// ===== MESSAGE SCHEMA =====
-const messageSchema = new mongoose.Schema({
-  from: String,
-  to: String,
-  message: String,
-  timestamp: { type: Date, default: Date.now },
-  seen: { type: Boolean, default: false }
-});
-const Message = mongoose.model("Message", messageSchema);
+// ===== SOUND =====
+const messageSound = new Audio("/sounds/message.mp3");
 
-// ================= SIGNUP =================
-app.post("/signup", async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
+// ===== HELPER FUNCTIONS =====
+function appendMessage(msg, seen = false) {
+  const div = document.createElement("div");
+  div.classList.add("message");
+  div.classList.add(msg.from === userId ? "sent" : "received");
 
-    if (!username.startsWith("+"))
-      return res.status(400).json({ success: false, message: "Username must start with +" });
+  const time = new Date(msg.timestamp);
+  const hours = time.getHours().toString().padStart(2, "0");
+  const minutes = time.getMinutes().toString().padStart(2, "0");
 
-    const exists = await User.findOne({ email });
-    if (exists) return res.status(400).json({ success: false, message: "Email already registered" });
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const user = new User({ username, email, password: hashedPassword });
-    await user.save();
-
-    res.json({ success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ success: false });
+  let tickHTML = "";
+  if (msg.from === userId) {
+    tickHTML = seen ? "✔✔" : "✔"; // single/double tick
   }
-});
 
-// ================= LOGIN =================
-app.post("/login", async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email });
-    if (!user) return res.status(400).json({ success: false, message: "Invalid credentials" });
+  div.innerHTML = `
+    ${msg.message} <span class="time">${hours}:${minutes}</span> <span class="tick">${tickHTML}</span>
+  `;
 
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(400).json({ success: false, message: "Invalid credentials" });
+  messagesContainer.appendChild(div);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
 
-    res.json({
-      success: true,
-      username: user.username,
-      userId: user._id,
-      photo: user.photo
+// ===== LOAD USERS =====
+async function loadUsers(search = "") {
+  const res = await fetch(`/users?search=${search}&exclude=${userId}`);
+  const users = await res.json();
+
+  userList.innerHTML = "";
+
+  users.forEach(user => {
+    const div = document.createElement("div");
+    div.classList.add("user");
+
+    const photo = user.photo || "uploads/profile.jpg";
+    const isOnline = onlineUsers.includes(user._id);
+
+    div.innerHTML = `
+      <img src="${photo}" class="user-photo">
+      <div class="user-info">
+        <span class="username">${user.username}</span>
+        <span class="status">${isOnline ? "🟢 Online" : `⚫ Offline - last seen ${new Date(user.lastSeen).toLocaleString()}`}</span>
+      </div>
+      <span class="badge" id="badge-${user._id}">${unreadMessages[user._id] ? `+${unreadMessages[user._id]}` : ""}</span>
+    `;
+
+    div.addEventListener("click", async () => {
+      currentChatUserId = user._id;
+      chatHeaderName.textContent = user.username;
+      chatHeaderPhoto.src = photo;
+      chatHeaderStatus.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${new Date(user.lastSeen).toLocaleString()}`;
+      messagesContainer.innerHTML = "";
+
+      // Reset unread badge
+      unreadMessages[user._id] = 0;
+      const badge = document.getElementById(`badge-${user._id}`);
+      if (badge) badge.textContent = "";
+
+      // Load messages
+      const msgRes = await fetch(`/messages?userId=${userId}&chatWith=${user._id}`);
+      const messages = await msgRes.json();
+      messages.forEach(m => appendMessage(m, m.seen));
+
+      // Mark messages as seen
+      await fetch("/mark-seen", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: user._id, to: userId })
+      });
+
+      // Emit messageSeen event for real-time double tick
+      socket.emit("messageSeen", { from: user._id, to: userId });
     });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ success: false });
-  }
-});
 
-// ================= USER SEARCH =================
-app.get("/users", async (req, res) => {
-  try {
-    const { search = "", exclude } = req.query;
-    let query = {};
-    if (search) query.username = { $regex: search, $options: "i" };
-    if (exclude && mongoose.isValidObjectId(exclude)) query._id = { $ne: exclude };
+    userList.appendChild(div);
+  });
+}
 
-    const users = await User.find(query).select("_id username photo");
-    res.json(users);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json([]);
-  }
-});
+// ===== URL PARAMS: OPEN CHAT DIRECTLY =====
+const params = new URLSearchParams(window.location.search);
+const receiverId = params.get("user");
+const receiverName = params.get("name");
 
-// ================= GET CHAT MESSAGES =================
-app.get("/messages", async (req, res) => {
-  try {
-    const { userId, chatWith } = req.query;
-    const messages = await Message.find({
-      $or: [
-        { from: userId, to: chatWith },
-        { from: chatWith, to: userId }
-      ]
-    }).sort({ timestamp: 1 });
-    res.json(messages);
-  } catch (err) {
-    console.log(err);
-    res.status(500).json([]);
-  }
-});
+if (receiverId) {
+  currentChatUserId = receiverId;
+  chatHeaderName.textContent = receiverName || "+User";
 
-// ================= DELETE MESSAGE =================
-app.delete("/delete-message/:id", async (req, res) => {
-  try {
-    await Message.findByIdAndDelete(req.params.id);
-    res.json({ success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ success: false });
-  }
-});
+  // Fetch user info for photo & status
+  fetch(`/user?id=${receiverId}`)
+    .then(res => res.json())
+    .then(user => {
+      chatHeaderPhoto.src = user.photo || "uploads/profile.jpg";
+      chatHeaderStatus.textContent = onlineUsers.includes(user._id)
+        ? "🟢 Online"
+        : `⚫ Offline - last seen ${new Date(user.lastSeen).toLocaleString()}`;
+    });
 
-// ================= MARK MESSAGE SEEN =================
-app.post("/mark-seen", async (req, res) => {
-  try {
-    const { from, to } = req.body;
-    await Message.updateMany({ from, to, seen: false }, { seen: true });
-    res.json({ success: true });
-  } catch (err) {
-    console.log(err);
-    res.status(500).json({ success: false });
-  }
-});
+  // Load existing messages
+  fetch(`/messages?userId=${userId}&chatWith=${receiverId}`)
+    .then(res => res.json())
+    .then(messages => messages.forEach(m => appendMessage(m, m.seen)));
 
-// ================= PROFILE UPDATE =================
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(__dirname, "public/uploads");
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    cb(null, Date.now() + "-" + file.originalname);
-  }
-});
-const upload = multer({ storage });
-
-app.post("/change-username", async (req, res) => {
-  const { userId, username } = req.body;
-  await User.findByIdAndUpdate(userId, { username });
-  res.json({ success: true });
-});
-
-app.post("/change-email", async (req, res) => {
-  const { userId, email } = req.body;
-  const exists = await User.findOne({ email, _id: { $ne: userId } });
-  if (exists) return res.status(400).json({ success: false });
-  await User.findByIdAndUpdate(userId, { email });
-  res.json({ success: true });
-});
-
-app.post("/change-password", async (req, res) => {
-  const { userId, password } = req.body;
-  const hashed = await bcrypt.hash(password, 10);
-  await User.findByIdAndUpdate(userId, { password: hashed });
-  res.json({ success: true });
-});
-
-app.post("/upload-photo", upload.single("photo"), async (req, res) => {
-  const { userId } = req.body;
-  const filePath = "/uploads/" + req.file.filename;
-  await User.findByIdAndUpdate(userId, { photo: filePath });
-  res.json({ success: true, url: filePath });
-});
-
-// ================= SOCKET.IO =================
-let onlineUsers = {};       // { userId: socketId }
-let socketToUser = {};      // { socket.id: userId }
-
-io.on("connection", (socket) => {
-
-  // REGISTER USER
-  socket.on("register", (userId) => {
-    onlineUsers[userId] = socket.id;
-    socketToUser[socket.id] = userId;
-    io.emit("online-users", Object.keys(onlineUsers));
+  // Mark as seen
+  fetch("/mark-seen", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from: receiverId, to: userId })
   });
 
-  // PRIVATE MESSAGE
-  socket.on("send-message", async ({ to, message }) => {
-    const from = socketToUser[socket.id];
-    if (!from) return;
+  // Emit messageSeen event
+  socket.emit("messageSeen", { from: receiverId, to: userId });
+}
 
-    const sender = await User.findById(from);
-    const msg = new Message({ from, to, message });
-    await msg.save();
+// ===== SEND MESSAGE =====
+sendBtn.addEventListener("click", sendMessage);
+inputBox.addEventListener("keypress", (e) => {
+  if (e.key === "Enter") sendMessage();
+});
 
-    const receiverSocket = onlineUsers[to];
-    if (receiverSocket) {
-      io.to(receiverSocket).emit("receive-message", {
-        _id: msg._id,
-        message,
-        from,
-        fromUsername: sender.username,
-        timestamp: msg.timestamp
+function sendMessage() {
+  const msg = inputBox.value.trim();
+  if (!msg || !currentChatUserId) return;
+
+  socket.emit("send-message", { to: currentChatUserId, message: msg });
+  appendMessage({ from: userId, message: msg, timestamp: new Date() }); // single tick by default
+  inputBox.value = "";
+}
+
+// ===== RECEIVE MESSAGE =====
+socket.on("private message", (msg) => {
+  if (currentChatUserId === msg.from) {
+    appendMessage(msg, msg.seen);
+    messageSound.play();
+
+    // Emit messageSeen event (server handles double tick)
+    socket.emit("messageSeen", { from: msg.from, to: userId });
+  } else {
+    // Increment unread
+    unreadMessages[msg.from] = (unreadMessages[msg.from] || 0) + 1;
+    const badge = document.getElementById(`badge-${msg.from}`);
+    if (badge) badge.textContent = `+${unreadMessages[msg.from]}`;
+
+    // Notification
+    if (Notification.permission === "granted") {
+      new Notification("New Message", {
+        body: msg.message,
+        icon: "/uploads/profile.jpg"
       });
     }
-  });
 
-  // TYPING INDICATOR
-  socket.on("typing", (to) => {
-    const receiverSocket = onlineUsers[to];
-    if (receiverSocket) io.to(receiverSocket).emit("typing");
-  });
-
-  // DISCONNECT
-  socket.on("disconnect", async () => {
-    const userId = socketToUser[socket.id];
-    if (userId) {
-      await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-      delete onlineUsers[userId];
-      io.emit("online-users", Object.keys(onlineUsers));
-    }
-    delete socketToUser[socket.id];
-  });
-
+    messageSound.play();
+  }
 });
 
-// ================= START SERVER =================
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+// ===== MESSAGE SEEN UPDATE =====
+socket.on("messageSeen", ({ from }) => {
+  if (currentChatUserId === from) {
+    // Update last sent message tick to double
+    const msgs = messagesContainer.querySelectorAll(".sent .tick");
+    if (msgs.length) msgs[msgs.length - 1].textContent = "✔✔";
+  }
 });
+
+// ===== ONLINE USERS UPDATE =====
+socket.on("online-users", (users) => {
+  onlineUsers = users;
+  loadUsers(searchInput.value);
+});
+
+// ===== SEARCH =====
+searchInput.addEventListener("input", (e) => loadUsers(e.target.value));
+
+// ===== REQUEST NOTIFICATIONS =====
+if (Notification.permission !== "granted") Notification.requestPermission();
+
+// ===== INITIAL LOAD =====
+loadUsers();
