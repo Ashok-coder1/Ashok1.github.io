@@ -57,7 +57,6 @@ body{
 </head>
 <body>
 
-<!-- DASHBOARD -->
 <div class="dashboard-container">
   <div class="sidebar">
     <h2>Chats</h2>
@@ -66,7 +65,6 @@ body{
   </div>
 </div>
 
-<!-- PROFILE BUTTON & MENU -->
 <div class="profile-container">
   <button id="profileBtn" class="profile-btn">
     <img id="profilePhoto" src="uploads/profile.jpg">
@@ -89,7 +87,7 @@ body{
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ===== PROFILE MENU TOGGLE (UNCHANGED) =====
+// ===== PROFILE MENU TOGGLE (FIXED) =====
 const profileBtn = document.getElementById("profileBtn");
 const profileMenu = document.getElementById("profileMenu");
 
@@ -154,16 +152,17 @@ let unreadMessages = {};
 // ===== FORMAT USERNAME =====
 function formatUsername(name){ return name.startsWith("+")?name:"+"+name; }
 
-// ===== LOAD USERS =====
+// ===== LOAD USERS (FIXED: Runs on refresh) =====
 async function loadUsers(search=""){
   const list = document.getElementById("userList");
-  if(search.trim()===""){ list.innerHTML=""; return; }
+  // Removed the check that cleared list when search was empty
   const res = await fetch(`/users?search=${search}&exclude=${userId}`);
   const users = await res.json();
   list.innerHTML="";
   users.forEach(u=>{
     const div = document.createElement("div");
     div.classList.add("user");
+    div.id = `user-${u._id}`; // Added ID for badge selection
     const photo = u.photo || "uploads/profile.jpg";
     const isOnline = onlineUsers.includes(u._id);
     const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString() : "";
@@ -205,27 +204,36 @@ socket.on("online-users", users=>{
 // ===== SEARCH USERS =====
 document.getElementById("searchUser").addEventListener("input", e=>loadUsers(e.target.value));
 
-// ===== MESSAGE SOUND & NOTIFICATIONS =====
+// ===== MESSAGE SOUND & NOTIFICATIONS (FIXED) =====
 const msgSound = document.getElementById("msgSound");
 if(Notification.permission!=="granted"){ Notification.requestPermission(); }
 
-socket.on("receive-message", data=>{
-  if(!document.hidden){ msgSound.play(); 
-    if(Notification.permission==="granted"){
-      new Notification(`New message from ${formatUsername(data.fromName)}`, { body:data.message, icon:data.photo||"uploads/profile.jpg" });
-    }
-  } else {
-    unreadMessages[data.fromId] = (unreadMessages[data.fromId]||0)+1;
-    updateBadge(data.fromId);
+socket.on("private message", data => {
+  console.log("New message received");
+  msgSound.play();
+  
+  // Update UI badge
+  unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
+  updateBadge(data.from);
+
+  // Browser Notification
+  if (Notification.permission === "granted") {
+    new Notification("New Message", {
+      body: data.message,
+      icon: "uploads/profile.jpg"
+    });
   }
+  
+  // Refresh list to show latest status/order if needed
+  // loadUsers(document.getElementById("searchUser").value); 
 });
 
-socket.emit("register", localStorage.getItem("userId")); // after login
-socket.on("online-users", users => { /* update UI */ });
-socket.on("private message", msg => { /* append message */ });
-socket.emit("messageSeen", { from: senderId, to: myId });
+// Register user
+socket.emit("register", userId);
+
+// INITIAL LOAD ON PAGE START
+loadUsers();
 
 </script>
-
 </body>
 </html>
