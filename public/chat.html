@@ -25,7 +25,6 @@ body{margin:0;padding:0;font-family:'Segoe UI',sans-serif;background:#0f172a;col
 <body>
 
 <div class="chat-container">
-  <!-- CHAT HEADER -->
   <div class="chat-header">
     <button id="backBtn">← Back</button>
     <img id="chatUserPhoto" src="uploads/profile.jpg">
@@ -35,10 +34,8 @@ body{margin:0;padding:0;font-family:'Segoe UI',sans-serif;background:#0f172a;col
     </div>
   </div>
 
-  <!-- MESSAGES -->
   <div class="messages" id="messages"></div>
 
-  <!-- INPUT BOX -->
   <div class="inputBox">
     <input type="text" id="messageInput" placeholder="Type a message...">
     <button id="sendBtn">Send</button>
@@ -54,7 +51,7 @@ const userId = localStorage.getItem("userId");
 if(!userId) window.location.href="index.html";
 
 const params = new URLSearchParams(window.location.search);
-const chatWithId = params.get("user"); // clicked user from dashboard
+const chatWithId = params.get("user");
 if(!chatWithId) { alert("No user selected"); window.location.href="dashboard.html"; }
 
 const chatUsernameEl = document.getElementById("chatUsername");
@@ -65,54 +62,55 @@ const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 const msgSound = document.getElementById("msgSound");
 
+// Register socket
+socket.emit("register", userId);
+
 // ===== BACK BUTTON =====
-document.getElementById("backBtn").addEventListener("click", ()=> window.history.back());
+document.getElementById("backBtn").addEventListener("click", ()=> window.location.href="dashboard.html");
 
-// ===== ONLINE USERS =====
+// ===== ONLINE STATUS LOGIC =====
 let onlineUsers = [];
-
-// ===== LOAD CHAT USER INFO =====
-fetch(`/user?id=${chatWithId}`)
-.then(res=>res.json())
-.then(user=>{
-  let lastSeenTime;
-fetch(`/user?id=${chatWithId}`)
-  .then(res=>res.json())
-  .then(user=>{
-    lastSeenTime = user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A";
-    chatUsernameEl.textContent = "+" + user.username;
-    chatPhotoEl.src = user.photo || "uploads/profile.jpg";
-    updateStatus();
-  });
+let lastSeenTime = "N/A";
 
 function updateStatus() {
   const isOnline = onlineUsers.includes(chatWithId);
   chatStatusEl.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${lastSeenTime}`;
 }
 
+// ===== LOAD CHAT USER INFO =====
+fetch(`/user?id=${chatWithId}`)
+.then(res=>res.json())
+.then(user=>{
+  lastSeenTime = user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A";
+  chatUsernameEl.textContent = "+" + user.username;
+  chatPhotoEl.src = user.photo || "uploads/profile.jpg";
+  updateStatus();
+});
+
 socket.on("online-users", users => {
   onlineUsers = users;
   updateStatus();
-});
 });
 
 // ===== LOAD PREVIOUS MESSAGES =====
 async function loadMessages(){
   const res = await fetch(`/messages?userId=${userId}&chatWith=${chatWithId}`);
   const msgs = await res.json();
+  messagesEl.innerHTML = "";
   msgs.forEach(m=>appendMessage(m,m.seen));
+  socket.emit("messageSeen", { from: chatWithId, to: userId });
 }
 loadMessages();
 
 // ===== APPEND MESSAGE =====
 function appendMessage(msg, seen=false){
   const div = document.createElement("div");
-  div.classList.add("message",msg.from===userId?"sent":"received");
+  div.classList.add("message", msg.from === userId ? "sent" : "received");
   const time = new Date(msg.timestamp);
   const hours = time.getHours().toString().padStart(2,"0");
   const minutes = time.getMinutes().toString().padStart(2,"0");
   let tickHTML = "";
-  if(msg.from===userId) tickHTML = seen?"✔✔":"✔";
+  if(msg.from === userId) tickHTML = seen ? "✔✔" : "✔";
   div.innerHTML = `${msg.message} <span class="time">${hours}:${minutes}</span> <span class="tick">${tickHTML}</span>`;
   messagesEl.appendChild(div);
   messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -121,60 +119,39 @@ function appendMessage(msg, seen=false){
 // ===== SEND MESSAGE =====
 sendBtn.addEventListener("click", sendMessage);
 messageInput.addEventListener("keypress", e=>{if(e.key==="Enter") sendMessage();});
+
 function sendMessage(){
-  const msg = messageInput.value.trim();
-  if(!msg) return;
-  socket.emit("send-message",{to:chatWithId,message:msg});
-  appendMessage({from:userId,message:msg,timestamp:new Date()});
-  messageInput.value="";
+  const msgText = messageInput.value.trim();
+  if(!msgText) return;
+  const msgData = { to: chatWithId, from: userId, message: msgText, timestamp: new Date() };
+  socket.emit("send-message", msgData);
+  appendMessage(msgData, false);
+  messageInput.value = "";
 }
 
-// ===== RECEIVE MESSAGE =====
-socket.on("private message", msg=>{
-  if(msg.from===chatWithId){
-    appendMessage(msg,msg.seen);
-    msgSound.play();
-    socket.emit("messageSeen",{from:msg.from,to:userId});
-  } else {
-    msgSound.play();
-    if(Notification.permission==="granted") new Notification("New Message",{body:msg.message,icon:"uploads/profile.jpg"});
-  }
-});
-
-// ===== MESSAGE SEEN =====
-socket.on("messageSeen",({from})=>{
-  if(from===chatWithId){
-    const ticks = messagesEl.querySelectorAll(".sent .tick");
-    if(ticks.length) ticks[ticks.length-1].textContent="✔✔";
-  }
-});
-
+// ===== SINGLE PRIVATE MESSAGE LISTENER =====
 socket.on("private message", msg => {
   if(msg.from === chatWithId){
-    appendMessage(msg, msg.seen);
+    appendMessage(msg, true);
     msgSound.play();
-    socket.emit("messageSeen", { from: msg.from, to: userId }); // mark as seen in DB
+    socket.emit("messageSeen", { from: msg.from, to: userId });
   } else {
-    // other chat or notification
     msgSound.play();
-    if(Notification.permission === "granted") new Notification("New Message", { body: msg.message, icon:"uploads/profile.jpg" });
+    if(Notification.permission === "granted") {
+        new Notification("New Message", { body: msg.message, icon: "uploads/profile.jpg" });
+    }
   }
 });
 
-// ===== REQUEST NOTIFICATIONS =====
-if(Notification.permission!=="granted") Notification.requestPermission();
-
-socket.emit("register", localStorage.getItem("userId")); // after login
-socket.on("online-users", users => { /* update UI */ });
-socket.on("private message", msg => {
-
-  if (msg.from === userId) return; // ignore your own message
-
-  addMessage(msg.message, "received", msg.timestamp);
+// ===== MESSAGE SEEN RECEIPT =====
+socket.on("messageSeen", ({from}) => {
+  if(from === chatWithId){
+    const ticks = messagesEl.querySelectorAll(".sent .tick");
+    ticks.forEach(t => t.textContent = "✔✔");
+  }
 });
-socket.emit("messageSeen", { from: senderId, to: myId });
 
+if(Notification.permission !== "granted") Notification.requestPermission();
 </script>
-
 </body>
 </html>
