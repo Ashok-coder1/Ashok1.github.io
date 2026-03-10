@@ -3,85 +3,42 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Gara Dashboard</title>
+<title>Chat with User</title>
 <style>
-/* ===== GLOBAL RESET ===== */
-*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',sans-serif;}
-body{
-  min-height:100vh;
-  background:linear-gradient(135deg,#000,#0f172a,#1e3a8a);
-  display:flex; justify-content:center; align-items:center;
-}
-
-/* ===== DASHBOARD ===== */
-.dashboard-container{
-  width:95%; max-width:1200px; height:90vh;
-  background:rgba(255,255,255,0.05);
-  backdrop-filter:blur(15px);
-  border-radius:15px; display:flex; overflow:hidden;
-}
-.sidebar{ width:100%; padding:20px; color:white; display:flex; flex-direction:column; }
-.search{ width:100%; padding:10px; margin:10px 0; border-radius:8px; border:none; background:rgba(255,255,255,0.1); color:white; }
-.user-list{flex:1; overflow-y:auto;}
-.user{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;margin-bottom:6px;background:rgba(255,255,255,0.06);cursor:pointer;position:relative;color:white;}
-.user:hover{background:rgba(37,99,235,0.3);}
-.user-photo{width:40px;height:40px;border-radius:50%;object-fit:cover;}
-.user-info{display:flex;flex-direction:column;}
-.username{font-weight:600;}
-.status{font-size:12px;opacity:0.8;}
-.last-seen{font-size:10px;opacity:0.6;}
-.badge{position:absolute;right:10px;top:12px;background:#22c55e;color:white;font-size:12px;padding:2px 7px;border-radius:20px;min-width:20px;text-align:center;display:none;}
-
-/* ===== PROFILE BUTTON ===== */
-.profile-container { position:fixed; top:20px; right:20px; z-index:99999; }
-.profile-btn {
-  display:flex; align-items:center; gap:10px; padding:8px 15px;
-  border-radius:30px; border:none; color:white; cursor:pointer;
-  background:linear-gradient(45deg,#ff0000,#2563eb);
-}
-#profilePhoto { width:35px; height:35px; border-radius:50%; object-fit:cover; }
-
-/* ===== PROFILE MENU ===== */
-.profile-menu {
-  display:none; position:absolute; top:60px; right:0; width:220px;
-  background:#0f172a; padding:15px; border-radius:12px;
-  flex-direction:column; gap:10px; border:1px solid rgba(255,255,255,0.1);
-}
-.profile-menu button { width:100%; padding:10px; border-radius:8px; border:none; background:rgba(255,255,255,0.1); color:white; cursor:pointer; }
-.profile-menu button:hover{background:rgba(255,255,255,0.2);}
-#profilePreview { width:80px; height:80px; border-radius:50%; margin-bottom:10px; object-fit:cover; display:block; margin-left:auto;margin-right:auto;}
-
-/* ===== MOBILE ===== */
-@media(max-width:700px){.dashboard-container{flex-direction:column;height:95vh;}}
+body{margin:0;padding:0;font-family:'Segoe UI',sans-serif;background:#0f172a;color:white;display:flex;justify-content:center;align-items:flex-start;height:100vh;}
+.chat-container{width:100%;max-width:600px;height:100vh;display:flex;flex-direction:column;background:#1e293b;border-radius:12px;overflow:hidden;}
+.chat-header{display:flex;align-items:center;gap:10px;padding:10px;background:#0f172a;flex-shrink:0;}
+.chat-header img{width:45px;height:45px;border-radius:50%;object-fit:cover;}
+.chat-header .user-info{display:flex;flex-direction:column;}
+.chat-header .user-info span{font-size:12px;opacity:0.7;}
+.messages{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.message{padding:10px 15px;border-radius:15px;max-width:70%;word-break:break-word;display:flex;align-items:center;}
+.sent{background:#2563eb;align-self:flex-end;}
+.received{background:#334155;align-self:flex-start;}
+.message .time{font-size:10px;margin-left:5px;opacity:0.7;}
+.message .tick{font-size:10px;margin-left:3px;opacity:0.7;}
+.inputBox{display:flex;padding:10px;background:#1e293b;flex-shrink:0;}
+.inputBox input{flex:1;padding:10px;border:none;border-radius:10px;}
+.inputBox button{margin-left:10px;padding:10px 15px;border:none;border-radius:10px;background:#2563eb;color:white;cursor:pointer;}
 </style>
 </head>
 <body>
 
-<!-- DASHBOARD -->
-<div class="dashboard-container">
-  <div class="sidebar">
-    <h2>Chats</h2>
-    <input type="text" id="searchUser" class="search" placeholder="Search username...">
-    <div id="userList"></div>
-  </div>
-</div>
-
-<!-- PROFILE BUTTON & MENU -->
-<div class="profile-container">
-  <button id="profileBtn" class="profile-btn">
-    <img id="profilePhoto" src="uploads/profile.jpg">
-    <span id="usernameText">+Username</span>
-  </button>
-
-  <div id="profileMenu" class="profile-menu">
-    <div>
-      <img id="profilePreview" src="uploads/profile.jpg">
-      <input type="file" id="photoUpload" style="display:block; margin:0 auto 10px auto;">
+<div class="chat-container">
+  <div class="chat-header">
+    <button id="backBtn">← Back</button>
+    <img id="chatUserPhoto" src="uploads/profile.jpg">
+    <div class="user-info">
+      <span id="chatUsername">+User</span>
+      <span id="chatStatus">Offline</span>
     </div>
-    <button id="changeUsername">Change Username</button>
-    <button id="changeEmail">Change Email</button>
-    <button id="changePassword">Change Password</button>
-    <button id="logoutBtn" style="background:#ff3b3b;">Logout</button>
+  </div>
+
+  <div class="messages" id="messages"></div>
+
+  <div class="inputBox">
+    <input type="text" id="messageInput" placeholder="Type a message...">
+    <button id="sendBtn">Send</button>
   </div>
 </div>
 
@@ -89,199 +46,117 @@ body{
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ===== PROFILE MENU TOGGLE (UNCHANGED) =====
-const profileBtn = document.getElementById("profileBtn");
-const profileMenu = document.getElementById("profileMenu");
-
-profileBtn.addEventListener("click", e => {
-  e.stopPropagation();
-  profileMenu.style.display = profileMenu.style.display === "flex" ? "none" : "flex";
-});
-
-document.addEventListener("click", () => { profileMenu.style.display = "none"; });
-profileMenu.addEventListener("click", e => e.stopPropagation());
-
-const usernameSpan = document.getElementById("usernameText");
-let username = localStorage.getItem("username") || "User";
-usernameSpan.innerText = "+" + username;
-
-// ===== PROFILE PHOTO UPLOAD =====
-document.getElementById("photoUpload").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const formData = new FormData();
-  formData.append("photo", file);
-  formData.append("userId", localStorage.getItem("userId"));
-  const res = await fetch("/upload-photo", { method:"POST", body:formData });
-  const data = await res.json();
-  if(data.success){
-    document.getElementById("profilePhoto").src = data.url + "?t=" + new Date().getTime();
-    document.getElementById("profilePreview").src = data.url + "?t=" + new Date().getTime();
-    alert("Profile photo updated!");
-  }
-});
-
-// ===== CHANGE USERNAME / EMAIL / PASSWORD / LOGOUT =====
-document.getElementById("changeUsername").addEventListener("click", async () => {
-  const newName = prompt("Enter new username:");
-  if(!newName) return;
-  const cleanName = newName.startsWith("+") ? newName.slice(1) : newName;
-  await fetch("/change-username", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), username: cleanName })});
-  username = "+" + cleanName; usernameSpan.innerText = username; localStorage.setItem("username", cleanName);
-  alert("Username updated!");
-});
-
-document.getElementById("changeEmail").addEventListener("click", async () => {
-  const newEmail = prompt("Enter new email:"); if(!newEmail) return;
-  await fetch("/change-email", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), email: newEmail })});
-  alert("Email updated!");
-});
-
-document.getElementById("changePassword").addEventListener("click", async () => {
-  const newPass = prompt("Enter new password:"); if(!newPass) return;
-  await fetch("/change-password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), password: newPass })});
-  alert("Password updated!");
-});
-
-document.getElementById("logoutBtn").addEventListener("click", () => { localStorage.clear(); window.location.href="index.html"; });
-
-
-
-// ===== CHAT FEATURES =====
 const socket = io();
 const userId = localStorage.getItem("userId");
-let onlineUsers = [];
-let unreadMessages = JSON.parse(localStorage.getItem("unreadMessages") || "{}"); // Save unread counts
+if(!userId) window.location.href="index.html";
 
-// Register immediately on load
+const params = new URLSearchParams(window.location.search);
+const chatWithId = params.get("user");
+if(!chatWithId) { alert("No user selected"); window.location.href="dashboard.html"; }
+
+const chatUsernameEl = document.getElementById("chatUsername");
+const chatPhotoEl = document.getElementById("chatUserPhoto");
+const chatStatusEl = document.getElementById("chatStatus");
+const messagesEl = document.getElementById("messages");
+const messageInput = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+const msgSound = document.getElementById("msgSound");
+
+// Register user socket immediately
 socket.emit("register", userId);
 
-// NEW: Load all users by default so the list isn't empty on refresh
-document.addEventListener("DOMContentLoaded", () => {
-    loadUsers(""); 
-});
+// ===== BACK BUTTON =====
+document.getElementById("backBtn").addEventListener("click", ()=> window.location.href="dashboard.html");
 
-async function loadUsers(search=""){
-  const list = document.getElementById("userList");
-  // Removed the "if empty return" so it shows everyone by default
-  const res = await fetch(`/users?search=${search}&exclude=${userId}`);
-  const users = await res.json();
-  list.innerHTML="";
-  users.forEach(u=>{
-    const div = document.createElement("div");
-    div.classList.add("user");
-    const isOnline = onlineUsers.includes(u._id);
-    
-    div.innerHTML = `
-      <img src="${u.photo || 'uploads/profile.jpg'}" class="user-photo">
-      <div class="user-info">
-        <span class="username">${formatUsername(u.username)}</span>
-        <span class="status">${isOnline?"🟢 Online":"⚫ Offline"}</span>
-      </div>
-      <span class="badge" id="badge-${u._id}">${unreadMessages[u._id] || ""}</span>
-    `;
-    div.onclick = () => {
-      unreadMessages[u._id] = 0;
-      localStorage.setItem("unreadMessages", JSON.stringify(unreadMessages));
-      window.location.href = `chat.html?user=${u._id}&name=${u.username}`;
-    };
-    list.appendChild(div);
-    updateBadge(u._id);
+// ===== ONLINE STATUS =====
+let onlineUsers = [];
+let lastSeenTime = "N/A";
+
+function updateStatus() {
+  const isOnline = onlineUsers.includes(chatWithId);
+  chatStatusEl.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${lastSeenTime}`;
+}
+
+// ===== LOAD CHAT USER INFO =====
+fetch(`/user?id=${chatWithId}`)
+  .then(res=>res.json())
+  .then(user=>{
+    lastSeenTime = user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A";
+    chatUsernameEl.textContent = "+" + user.username;
+    chatPhotoEl.src = user.photo || "uploads/profile.jpg";
+    updateStatus();
   });
-}
 
-// Fixed Global Message Listener
-socket.on("private message", data => {
-    // Play sound and show badge if we are not on the chat page
-    const msgSound = document.getElementById("msgSound");
-    msgSound.play();
-    
-    unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
-    localStorage.setItem("unreadMessages", JSON.stringify(unreadMessages));
-    updateBadge(data.from);
-
-    if(Notification.permission === "granted"){
-        new Notification(`New Message from ${data.fromName || 'User'}`, {
-            body: data.message,
-            icon: "uploads/profile.jpg"
-        });
-    }
-});
-
-// ===== FORMAT USERNAME =====
-function formatUsername(name){ return name.startsWith("+")?name:"+"+name; }
-
-// ===== LOAD USERS =====
-async function loadUsers(search=""){
-  const list = document.getElementById("userList");
-  if(search.trim()===""){ list.innerHTML=""; return; }
-  const res = await fetch(`/users?search=${search}&exclude=${userId}`);
-  const users = await res.json();
-  list.innerHTML="";
-  users.forEach(u=>{
-    const div = document.createElement("div");
-    div.classList.add("user");
-    const photo = u.photo || "uploads/profile.jpg";
-    const isOnline = onlineUsers.includes(u._id);
-    const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString() : "";
-
-    div.innerHTML = `
-      <img src="${photo}" class="user-photo">
-      <div class="user-info">
-        <span class="username">${formatUsername(u.username)}</span>
-        <span class="status">${isOnline?"🟢 Online":"⚫ Offline"}</span>
-        <span class="last-seen">${!isOnline && lastSeen?"Last seen: "+lastSeen:""}</span>
-      </div>
-      <span class="badge" id="badge-${u._id}">${unreadMessages[u._id]||""}</span>
-    `;
-    div.addEventListener("click", ()=>{
-      unreadMessages[u._id] = 0;
-      updateBadge(u._id);
-      window.location.href = `chat.html?user=${u._id}&name=${formatUsername(u.username)}`;
-    });
-    list.appendChild(div);
-    updateBadge(u._id);
-  });
-}
-
-// ===== UPDATE BADGE =====
-function updateBadge(id){
-  const badge = document.getElementById(`badge-${id}`);
-  if(!badge) return;
-  const count = unreadMessages[id]||0;
-  badge.textContent = count>0?count:"";
-  badge.style.display = count>0?"inline-block":"none";
-}
-
-// ===== ONLINE USERS =====
-socket.on("online-users", users=>{
+socket.on("online-users", users => {
   onlineUsers = users;
-  loadUsers(document.getElementById("searchUser").value);
+  updateStatus();
 });
 
-// ===== SEARCH USERS =====
-document.getElementById("searchUser").addEventListener("input", e=>loadUsers(e.target.value));
+// ===== LOAD PREVIOUS MESSAGES =====
+async function loadMessages(){
+  const res = await fetch(`/messages?userId=${userId}&chatWith=${chatWithId}`);
+  const msgs = await res.json();
+  messagesEl.innerHTML = ""; // Clear list before loading
+  msgs.forEach(m=>appendMessage(m,m.seen));
+}
+loadMessages();
 
-// ===== MESSAGE SOUND & NOTIFICATIONS =====
-const msgSound = document.getElementById("msgSound");
-if(Notification.permission!=="granted"){ Notification.requestPermission(); }
+// ===== APPEND MESSAGE =====
+function appendMessage(msg, seen=false){
+  const div = document.createElement("div");
+  div.classList.add("message", msg.from === userId ? "sent" : "received");
+  
+  const time = new Date(msg.timestamp);
+  const hours = time.getHours().toString().padStart(2,"0");
+  const minutes = time.getMinutes().toString().padStart(2,"0");
+  
+  let tickHTML = "";
+  if(msg.from === userId) tickHTML = seen ? "✔✔" : "✔";
+  
+  div.innerHTML = `${msg.message} <span class="time">${hours}:${minutes}</span> <span class="tick">${tickHTML}</span>`;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
 
-socket.on("receive-message", data=>{
-  if(!document.hidden){ msgSound.play(); 
-    if(Notification.permission==="granted"){
-      new Notification(`New message from ${formatUsername(data.fromName)}`, { body:data.message, icon:data.photo||"uploads/profile.jpg" });
-    }
+// ===== SEND MESSAGE =====
+sendBtn.addEventListener("click", sendMessage);
+messageInput.addEventListener("keypress", e=>{if(e.key==="Enter") sendMessage();});
+
+function sendMessage(){
+  const msg = messageInput.value.trim();
+  if(!msg) return;
+  socket.emit("send-message",{to:chatWithId, message:msg});
+  appendMessage({from:userId, message:msg, timestamp:new Date()});
+  messageInput.value="";
+}
+
+// ===== SINGLE PRIVATE MESSAGE LISTENER (FIXED ISSUE #1) =====
+socket.on("private message", msg => {
+  if (msg.from === userId) return; // ignore own message
+
+  if(msg.from === chatWithId){
+    appendMessage(msg, msg.seen);
+    msgSound.play();
+    socket.emit("messageSeen", {from:msg.from, to:userId});
   } else {
-    unreadMessages[data.fromId] = (unreadMessages[data.fromId]||0)+1;
-    updateBadge(data.fromId);
+    // Notification for other users
+    msgSound.play();
+    if(Notification.permission === "granted") {
+      new Notification("New Message", {body:msg.message, icon:"uploads/profile.jpg"});
+    }
   }
 });
 
-socket.emit("register", localStorage.getItem("userId")); // after login
-socket.on("online-users", users => { /* update UI */ });
-socket.on("private message", msg => { /* append message */ });
-socket.emit("messageSeen", { from: senderId, to: myId });
+// ===== MESSAGE SEEN RECEIPT =====
+socket.on("messageSeen", ({from}) => {
+  if(from === chatWithId){
+    const ticks = messagesEl.querySelectorAll(".sent .tick");
+    ticks.forEach(tick => tick.textContent = "✔✔");
+  }
+});
 
+// ===== REQUEST NOTIFICATIONS =====
+if(Notification.permission !== "granted") Notification.requestPermission();
 </script>
 
 </body>
