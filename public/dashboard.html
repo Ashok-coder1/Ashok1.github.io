@@ -16,7 +16,6 @@ body{
 /* ===== DASHBOARD ===== */
 .dashboard-container{
   width:95%; max-width:1200px; height:90vh;
-
   background:rgba(255,255,255,0.05);
   backdrop-filter:blur(15px);
   border-radius:15px; display:flex; overflow:hidden;
@@ -54,19 +53,9 @@ body{
 
 /* ===== MOBILE ===== */
 @media(max-width:700px){
-
-  body{
-    align-items:flex-start;
-    padding-top:60px;
-  }
-
-  .dashboard-container{
-    height:92vh;
-  }
-
-  .profile-container{
-    top:66px; /* move profile button down */
-  }
+  body{ align-items:flex-start; padding-top:60px; }
+  .dashboard-container{ height:92vh; }
+  .profile-container{ top:66px; }
 }
 </style>
 </head>
@@ -76,20 +65,18 @@ body{
   <div class="sidebar">
     <h2>Chats</h2>
     <input type="text" id="searchUser" class="search" placeholder="Search username...">
-    <div id="userList"></div>
+    <div id="userList" class="user-list"></div>
   </div>
 </div>
 
 <div class="profile-container">
   <button id="profileBtn" class="profile-btn">
     <img id="profilePhoto" src="uploads/profile.webp">
-    <span id="usernameText">+Username</span>
+    <span id="usernameText">+User</span>
   </button>
 
   <div id="profileMenu" class="profile-menu">
-    <div>
-      <img id="profilePreview" src="uploads/profile.webp">
-      </div>
+    <div><img id="profilePreview" src="uploads/profile.webp"></div>
     <button id="changeUsername">Change Username</button>
     <button id="changeEmail">Change Email</button>
     <button id="changePassword">Change Password</button>
@@ -101,9 +88,24 @@ body{
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-// ===== PROFILE MENU TOGGLE (FIXED) =====
+// ===== SETUP & SOCKET INITIALIZATION =====
+const socket = io();
+const userId = localStorage.getItem("userId");
+if (!userId) window.location.href = "index.html";
+
+let onlineUsers = [];
+let unreadMessages = {};
+const searchInput = document.getElementById("searchUser");
+
+// Register user
+socket.emit("register", userId);
+
+// ===== PROFILE MENU LOGIC =====
 const profileBtn = document.getElementById("profileBtn");
 const profileMenu = document.getElementById("profileMenu");
+const usernameSpan = document.getElementById("usernameText");
+let username = localStorage.getItem("username") || "User";
+usernameSpan.innerText = "+" + username;
 
 profileBtn.addEventListener("click", e => {
   e.stopPropagation();
@@ -113,58 +115,46 @@ profileBtn.addEventListener("click", e => {
 document.addEventListener("click", () => { profileMenu.style.display = "none"; });
 profileMenu.addEventListener("click", e => e.stopPropagation());
 
-const usernameSpan = document.getElementById("usernameText");
-let username = localStorage.getItem("username") || "User";
-usernameSpan.innerText = "+" + username;
-
-// ===== CHANGE USERNAME / EMAIL / PASSWORD / LOGOUT =====
+// ===== USER SETTINGS (USERNAME/EMAIL/PASS) =====
 document.getElementById("changeUsername").addEventListener("click", async () => {
   const newName = prompt("Enter new username:");
   if(!newName) return;
   const cleanName = newName.startsWith("+") ? newName.slice(1) : newName;
-  await fetch("/change-username", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), username: cleanName })});
+  await fetch("/change-username", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: userId, username: cleanName })});
   username = "+" + cleanName; usernameSpan.innerText = username; localStorage.setItem("username", cleanName);
   alert("Username updated!");
 });
 
 document.getElementById("changeEmail").addEventListener("click", async () => {
   const newEmail = prompt("Enter new email:"); if(!newEmail) return;
-  await fetch("/change-email", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), email: newEmail })});
+  await fetch("/change-email", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: userId, email: newEmail })});
   alert("Email updated!");
 });
 
 document.getElementById("changePassword").addEventListener("click", async () => {
   const newPass = prompt("Enter new password:"); if(!newPass) return;
-  await fetch("/change-password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: localStorage.getItem("userId"), password: newPass })});
+  await fetch("/change-password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: userId, password: newPass })});
   alert("Password updated!");
 });
 
 document.getElementById("logoutBtn").addEventListener("click", () => { localStorage.clear(); window.location.href="index.html"; });
 
-// ===== CHAT FEATURES =====
-const socket = io();
-const userId = localStorage.getItem("userId");
-let onlineUsers = [];
-let unreadMessages = {};
-
-// ===== FORMAT USERNAME =====
+// ===== LOAD USERS FUNCTION =====
 function formatUsername(name){ return name.startsWith("+")?name:"+"+name; }
 
-// ===== LOAD USERS (FIXED: Runs on refresh) =====
 async function loadUsers(search=""){
   const list = document.getElementById("userList");
-  const res = await fetch(`/users?search=${search}&exclude=${userId}`);
+  const res = await fetch(`/users?search=${search}&exclude=${userId}`, { cache: "no-store" });
   const users = await res.json();
   list.innerHTML="";
+  
   users.forEach(u=>{
     const div = document.createElement("div");
     div.classList.add("user");
     div.id = `user-${u._id}`; 
     
-    // Always use the default profile picture for every user
     const photo = "uploads/profile.webp"; 
-    
-    const isOnline = onlineUsers.includes(u._id);
+    const isOnline = onlineUsers.includes(u._id) || u.online;
     const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleTimeString() : "";
 
     div.innerHTML = `
@@ -176,6 +166,7 @@ async function loadUsers(search=""){
       </div>
       <span class="badge" id="badge-${u._id}">${unreadMessages[u._id]||""}</span>
     `;
+    
     div.addEventListener("click", ()=>{
       unreadMessages[u._id] = 0;
       updateBadge(u._id);
@@ -186,7 +177,6 @@ async function loadUsers(search=""){
   });
 }
 
-// ===== UPDATE BADGE =====
 function updateBadge(id){
   const badge = document.getElementById(`badge-${id}`);
   if(!badge) return;
@@ -195,16 +185,27 @@ function updateBadge(id){
   badge.style.display = count>0?"inline-block":"none";
 }
 
-// ===== ONLINE USERS =====
-socket.on("online-users", users=>{
-  onlineUsers = users;
-  loadUsers(document.getElementById("searchUser").value);
+// ===== AUTOMATIC TRIGGERS (THE FIX) =====
+
+// 1. Load users as soon as the socket connects
+socket.on("connect", () => {
+    loadUsers(searchInput.value);
 });
 
-// ===== SEARCH USERS =====
-document.getElementById("searchUser").addEventListener("input", e=>loadUsers(e.target.value));
+// 2. Load users when online list changes
+socket.on("online-users", users=>{
+  onlineUsers = users;
+  loadUsers(searchInput.value);
+});
 
-// ===== MESSAGE SOUND & NOTIFICATIONS (FIXED) =====
+// 3. Listen for new registration or status changes
+socket.on("newUser", () => loadUsers(searchInput.value));
+socket.on("userStatusChanged", () => loadUsers(searchInput.value));
+
+// 4. Manual Search
+searchInput.addEventListener("input", e=>loadUsers(e.target.value));
+
+// ===== NOTIFICATIONS & SOUND =====
 const msgSound = document.getElementById("msgSound");
 if(Notification.permission!=="granted"){ Notification.requestPermission(); }
 
@@ -221,16 +222,8 @@ socket.on("private message", data => {
   }
 });
 
-// Register user
-socket.emit("register", userId);
-
-// INITIAL LOAD ON PAGE START
+// Initial backup load
 loadUsers();
-
-window.addEventListener("DOMContentLoaded", () => {
-    loadUsers(); // automatically loads all users when dashboard opens
-});
-
 </script>
 </body>
 </html>
