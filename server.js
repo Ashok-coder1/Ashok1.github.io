@@ -223,14 +223,27 @@ io.on("connection", (socket) => {
     }
 
     // update sender UI
-    socket.emit("private message", {
+    socket.on("send-message", async ({ to, message }) => {
+  const from = socketToUser[socket.id];
+  if (!from) return;
+
+  const msg = new Message({ from, to, message });
+  await msg.save();
+
+  const receiverSocket = onlineUsers[to];
+  const sender = await User.findById(from);
+
+  if (receiverSocket) {
+    io.to(receiverSocket).emit("private message", {
       _id: msg._id,
       message: msg.message,
       from,
-      fromName: "",
+      fromName: "+" + sender.username,
       timestamp: msg.timestamp,
       seen: false
     });
+  }
+});
   });
 
   // ===== MESSAGE SEEN =====
