@@ -221,20 +221,20 @@ app.post("/upload-photo", upload.single("photo"), async (req, res) => {
 });
 
 // ================= SOCKET.IO =================
-let onlineUsers = {};       // { userId: socketId }
-let socketToUser = {};      // { socket.id: userId }
+let onlineUsers = {};   // { userId: socketId }
+let socketToUser = {};  // { socket.id: userId }
 
 io.on("connection", (socket) => {
 
-  // REGISTER USER
+  // ===== REGISTER USER =====
   socket.on("register", async (userId) => {
     onlineUsers[userId] = socket.id;
     socketToUser[socket.id] = userId;
 
-    // Emit current online users
+    // Broadcast online users
     io.emit("online-users", Object.keys(onlineUsers));
 
-    // Send all unseen messages
+    // Send all unseen messages to this user
     const unseenMessages = await Message.find({ to: userId, seen: false }).sort({ timestamp: 1 });
     for (let msg of unseenMessages) {
       const sender = await User.findById(msg.from);
@@ -242,49 +242,60 @@ io.on("connection", (socket) => {
         _id: msg._id,
         message: msg.message,
         from: msg.from,
-        fromUsername: sender ? sender.username : "User",
+        fromName: "+" + sender.username,
         timestamp: msg.timestamp,
         seen: false
       });
     }
   });
 
-  // PRIVATE MESSAGE
+  // ===== SEND PRIVATE MESSAGE =====
   socket.on("send-message", async ({ to, message }) => {
     const from = socketToUser[socket.id];
     if (!from) return;
 
-    const sender = await User.findById(from);
     const msg = new Message({ from, to, message });
     await msg.save();
 
+    // Send to receiver if online
     const receiverSocket = onlineUsers[to];
     if (receiverSocket) {
+      const sender = await User.findById(from);
       io.to(receiverSocket).emit("private message", {
         _id: msg._id,
-        message,
+        message: msg.message,
         from,
-        fromUsername: sender.username,
+        fromName: "+" + sender.username,
         timestamp: msg.timestamp,
         seen: false
       });
     }
+
+    // Optionally, send ack back to sender
+    socket.emit("private message", {
+      _id: msg._id,
+      message: msg.message,
+      from,
+      fromName: "", // not needed for sender
+      timestamp: msg.timestamp,
+      seen: false
+    });
   });
 
-  // MESSAGE SEEN EVENT
+  // ===== MESSAGE SEEN =====
   socket.on("messageSeen", async ({ from, to }) => {
     await Message.updateMany({ from, to, seen: false }, { seen: true });
     const senderSocket = onlineUsers[from];
     if (senderSocket) io.to(senderSocket).emit("messageSeen", { from: to });
   });
 
-  // TYPING INDICATOR
+  // ===== TYPING INDICATOR =====
   socket.on("typing", (to) => {
     const receiverSocket = onlineUsers[to];
     if (receiverSocket) io.to(receiverSocket).emit("typing");
   });
 
-  // DISCONNECT
+  // ===== DISCONNECT =====
   socket.on("disconnect", async () => {
     const userId = socketToUser[socket.id];
     if (userId) {
