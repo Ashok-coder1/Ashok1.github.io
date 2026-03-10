@@ -1,13 +1,18 @@
 const socket = io();
 
 const userId = localStorage.getItem("userId");
-const username = localStorage.getItem("username");
+let username = localStorage.getItem("username"); // use let to allow update
 
 if (!userId) window.location.href = "index.html";
 
 socket.emit("register", userId);
 
 let onlineUsers = [];
+
+// ================= HELPER FUNCTION =================
+function formatUsername(name) {
+  return name.startsWith("+") ? name : "+" + name;
+}
 
 // ================= LOAD USERS =================
 async function loadUsers(search = "") {
@@ -27,14 +32,14 @@ async function loadUsers(search = "") {
     div.innerHTML = `
       <img src="${photo}" class="user-photo">
       <div class="user-info">
-        <span class="username">${user.username}</span>
+        <span class="username">${formatUsername(user.username)}</span>
         <span class="status">${isOnline ? "🟢 Online" : "⚫ Offline"}</span>
       </div>
       <span class="badge" id="badge-${user._id}"></span>
     `;
 
     div.addEventListener("click", () => {
-      window.location.href = `chat.html?user=${user._id}&name=${user.username}`;
+      window.location.href = `chat.html?user=${user._id}&name=${formatUsername(user.username)}`;
     });
 
     userList.appendChild(div);
@@ -65,8 +70,8 @@ document.getElementById("photoUpload").addEventListener("change",async(e)=>{
   const data = await res.json();
 
   if(data.success){
-    document.getElementById("profilePhoto").src = data.url;
-    document.getElementById("profilePreview").src = data.url;
+    document.getElementById("profilePhoto").src = data.url + "?t=" + new Date().getTime();
+    document.getElementById("profilePreview").src = data.url + "?t=" + new Date().getTime();
     alert("Profile photo updated!");
   }
 });
@@ -76,13 +81,17 @@ document.getElementById("changeUsername").addEventListener("click",async()=>{
   const newName = prompt("Enter new username:");
   if(!newName) return;
 
+  // Strip leading '+' before sending to backend
+  const cleanName = newName.startsWith("+") ? newName.slice(1) : newName;
+
   await fetch("/change-username",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({userId,username:newName})
+    body:JSON.stringify({userId,username: cleanName})
   });
 
-  localStorage.setItem("username",newName);
+  username = formatUsername(cleanName);
+  localStorage.setItem("username", username);
   alert("Username updated");
   location.reload();
 });
