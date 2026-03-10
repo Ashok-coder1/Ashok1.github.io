@@ -5,8 +5,6 @@ const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
 const path = require("path");
 const bcrypt = require("bcrypt");
-const multer = require("multer");
-const fs = require("fs");
 
 const app = express();
 const server = http.createServer(app);
@@ -21,7 +19,7 @@ mongoose.connect("mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1
 
 const userSchema = new mongoose.Schema({
   username: String, email: String, password: String,
-  photo: { type: String, default: "/uploads/profile.jpg" },
+  photo: { type: String, default: "/uploads/profile.webp" },
   lastSeen: { type: Date, default: null }
 });
 const User = mongoose.model("User", userSchema);
@@ -48,7 +46,7 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
   if (!user || !await bcrypt.compare(password, user.password)) return res.status(400).json({ success: false });
-  res.json({ success: true, username: "+" + user.username, userId: user._id, photo: user.photo });
+  res.json({ success: true, username: "+" + user.username, userId: user._id, photo: "/uploads/profile.webp" });
 });
 
 app.get("/users", async (req, res) => {
@@ -56,12 +54,15 @@ app.get("/users", async (req, res) => {
   let query = {};
   if (search) query.username = { $regex: search, $options: "i" };
   if (exclude) query._id = { $ne: exclude };
+  // Force default photo in the response for all users
   const users = await User.find(query).select("_id username photo lastSeen");
-  res.json(users);
+  const formattedUsers = users.map(u => ({...u._doc, photo: "/uploads/profile.webp"}));
+  res.json(formattedUsers);
 });
 
 app.get("/user", async (req, res) => {
   const user = await User.findById(req.query.id).select("_id username photo lastSeen");
+  if(user) user.photo = "/uploads/profile.webp";
   res.json(user);
 });
 
