@@ -166,7 +166,12 @@ if(Notification.permission!=="granted") Notification.requestPermission();
 
 socket.emit("register", localStorage.getItem("userId")); // after login
 socket.on("online-users", users => { /* update UI */ });
-socket.on("private message", msg => { /* append message */ });
+socket.on("private message", msg => {
+
+  if (msg.from === userId) return; // ignore your own message
+
+  addMessage(msg.message, "received", msg.timestamp);
+});
 socket.emit("messageSeen", { from: senderId, to: myId });
 
 </script>
