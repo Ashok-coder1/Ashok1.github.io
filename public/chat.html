@@ -3,35 +3,167 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chat Gara</title>
-<link rel="stylesheet" href="chat.css">
+<title>Chat with User</title>
+<style>
+body{margin:0;padding:0;font-family:'Segoe UI',sans-serif;background:#0f172a;color:white;display:flex;justify-content:center;align-items:flex-start;height:100vh;}
+.chat-container{width:100%;max-width:600px;height:100vh;display:flex;flex-direction:column;background:#1e293b;border-radius:12px;overflow:hidden;}
+.chat-header{display:flex;align-items:center;gap:10px;padding:10px;background:#0f172a;flex-shrink:0;}
+.chat-header img{width:45px;height:45px;border-radius:50%;object-fit:cover;}
+.chat-header .user-info{display:flex;flex-direction:column;}
+.chat-header .user-info span{font-size:12px;opacity:0.7;}
+.messages{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.message{padding:10px 15px;border-radius:15px;max-width:70%;word-break:break-word;display:flex;align-items:center;}
+.sent{background:#2563eb;align-self:flex-end;}
+.received{background:#334155;align-self:flex-start;}
+.message .time{font-size:10px;margin-left:5px;opacity:0.7;}
+.message .tick{font-size:10px;margin-left:3px;opacity:0.7;}
+.inputBox{display:flex;padding:10px;background:#1e293b;flex-shrink:0;}
+.inputBox input{flex:1;padding:10px;border:none;border-radius:10px;}
+.inputBox button{margin-left:10px;padding:10px 15px;border:none;border-radius:10px;background:#2563eb;color:white;cursor:pointer;}
+</style>
 </head>
 <body>
 
 <div class="chat-container">
-
-  <!-- ===== CHAT HEADER ===== -->
+  <!-- CHAT HEADER -->
   <div class="chat-header">
     <button id="backBtn">← Back</button>
-    <img id="chatPhoto" src="uploads/profile.jpg" class="chat-user-photo">
-    <div class="chat-user-info">
-      <span id="chatName">User</span>
-      <span id="chatStatus"></span>
+    <img id="chatUserPhoto" src="uploads/profile.jpg">
+    <div class="user-info">
+      <span id="chatUsername">+User</span>
+      <span id="chatStatus">Offline</span>
     </div>
   </div>
 
-  <!-- ===== MESSAGES AREA ===== -->
-  <div class="messages"></div>
+  <!-- MESSAGES -->
+  <div class="messages" id="messages"></div>
 
-  <!-- ===== MESSAGE INPUT ===== -->
+  <!-- INPUT BOX -->
   <div class="inputBox">
-    <input type="text" placeholder="Type a message..." />
-    <button>Send</button>
+    <input type="text" id="messageInput" placeholder="Type a message...">
+    <button id="sendBtn">Send</button>
   </div>
-
 </div>
 
+<audio id="msgSound" src="sounds/message.mp3" preload="auto"></audio>
+
 <script src="/socket.io/socket.io.js"></script>
-<script src="chat.js"></script>
+<script>
+const socket = io();
+const userId = localStorage.getItem("userId");
+if(!userId) window.location.href="index.html";
+
+const params = new URLSearchParams(window.location.search);
+const chatWithId = params.get("user"); // clicked user from dashboard
+if(!chatWithId) { alert("No user selected"); window.location.href="dashboard.html"; }
+
+const chatUsernameEl = document.getElementById("chatUsername");
+const chatPhotoEl = document.getElementById("chatUserPhoto");
+const chatStatusEl = document.getElementById("chatStatus");
+const messagesEl = document.getElementById("messages");
+const messageInput = document.getElementById("messageInput");
+const sendBtn = document.getElementById("sendBtn");
+const msgSound = document.getElementById("msgSound");
+
+// ===== BACK BUTTON =====
+document.getElementById("backBtn").addEventListener("click", ()=> window.history.back());
+
+// ===== ONLINE USERS =====
+let onlineUsers = [];
+
+// ===== LOAD CHAT USER INFO =====
+fetch(`/user?id=${chatWithId}`)
+.then(res=>res.json())
+.then(user=>{
+  let lastSeenTime;
+fetch(`/user?id=${chatWithId}`)
+  .then(res=>res.json())
+  .then(user=>{
+    lastSeenTime = user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A";
+    chatUsernameEl.textContent = "+" + user.username;
+    chatPhotoEl.src = user.photo || "uploads/profile.jpg";
+    updateStatus();
+  });
+
+function updateStatus() {
+  const isOnline = onlineUsers.includes(chatWithId);
+  chatStatusEl.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${lastSeenTime}`;
+}
+
+socket.on("online-users", users => {
+  onlineUsers = users;
+  updateStatus();
+});
+});
+
+// ===== LOAD PREVIOUS MESSAGES =====
+async function loadMessages(){
+  const res = await fetch(`/messages?userId=${userId}&chatWith=${chatWithId}`);
+  const msgs = await res.json();
+  msgs.forEach(m=>appendMessage(m,m.seen));
+}
+loadMessages();
+
+// ===== APPEND MESSAGE =====
+function appendMessage(msg, seen=false){
+  const div = document.createElement("div");
+  div.classList.add("message",msg.from===userId?"sent":"received");
+  const time = new Date(msg.timestamp);
+  const hours = time.getHours().toString().padStart(2,"0");
+  const minutes = time.getMinutes().toString().padStart(2,"0");
+  let tickHTML = "";
+  if(msg.from===userId) tickHTML = seen?"✔✔":"✔";
+  div.innerHTML = `${msg.message} <span class="time">${hours}:${minutes}</span> <span class="tick">${tickHTML}</span>`;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ===== SEND MESSAGE =====
+sendBtn.addEventListener("click", sendMessage);
+messageInput.addEventListener("keypress", e=>{if(e.key==="Enter") sendMessage();});
+function sendMessage(){
+  const msg = messageInput.value.trim();
+  if(!msg) return;
+  socket.emit("send-message",{to:chatWithId,message:msg});
+  appendMessage({from:userId,message:msg,timestamp:new Date()});
+  messageInput.value="";
+}
+
+// ===== RECEIVE MESSAGE =====
+socket.on("private message", msg=>{
+  if(msg.from===chatWithId){
+    appendMessage(msg,msg.seen);
+    msgSound.play();
+    socket.emit("messageSeen",{from:msg.from,to:userId});
+  } else {
+    msgSound.play();
+    if(Notification.permission==="granted") new Notification("New Message",{body:msg.message,icon:"uploads/profile.jpg"});
+  }
+});
+
+// ===== MESSAGE SEEN =====
+socket.on("messageSeen",({from})=>{
+  if(from===chatWithId){
+    const ticks = messagesEl.querySelectorAll(".sent .tick");
+    if(ticks.length) ticks[ticks.length-1].textContent="✔✔";
+  }
+});
+
+socket.on("private message", msg => {
+  if(msg.from === chatWithId){
+    appendMessage(msg, msg.seen);
+    msgSound.play();
+    socket.emit("messageSeen", { from: msg.from, to: userId }); // mark as seen in DB
+  } else {
+    // other chat or notification
+    msgSound.play();
+    if(Notification.permission === "granted") new Notification("New Message", { body: msg.message, icon:"uploads/profile.jpg" });
+  }
+});
+
+// ===== REQUEST NOTIFICATIONS =====
+if(Notification.permission!=="granted") Notification.requestPermission();
+</script>
+
 </body>
 </html>
