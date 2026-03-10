@@ -163,6 +163,12 @@ socket.on("private message", msg => {
 
 // ===== REQUEST NOTIFICATIONS =====
 if(Notification.permission!=="granted") Notification.requestPermission();
+
+socket.emit("register", localStorage.getItem("userId")); // after login
+socket.on("online-users", users => { /* update UI */ });
+socket.on("private message", msg => { /* append message */ });
+socket.emit("messageSeen", { from: senderId, to: myId });
+
 </script>
 
 </body>
