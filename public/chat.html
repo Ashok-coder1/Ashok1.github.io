@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Chat Gara</title>
-  <link rel="stylesheet" href="chat.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chat Gara</title>
+<link rel="stylesheet" href="chat.css">
 </head>
 <body>
 
@@ -13,20 +13,20 @@
   <!-- ===== CHAT HEADER ===== -->
   <div class="chat-header">
     <button id="backBtn">← Back</button>
-    <img id="chatPhoto" src="uploads/profile.jpg">
+    <img id="chatPhoto" src="uploads/profile.jpg" class="chat-user-photo">
     <div class="chat-user-info">
-      <span id="chatName"></span>
+      <span id="chatName">User</span>
       <span id="chatStatus"></span>
     </div>
   </div>
 
   <!-- ===== MESSAGES AREA ===== -->
-  <div class="messages" id="messages"></div>
+  <div class="messages"></div>
 
   <!-- ===== MESSAGE INPUT ===== -->
   <div class="inputBox">
-    <input type="text" id="messageInput" placeholder="Type a message...">
-    <button id="sendBtn">Send</button>
+    <input type="text" placeholder="Type a message..." />
+    <button>Send</button>
   </div>
 
 </div>
