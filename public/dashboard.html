@@ -51,6 +51,9 @@ body{
 .profile-menu button:hover{background:rgba(255,255,255,0.2);}
 #profilePreview { width:80px; height:80px; border-radius:50%; margin-bottom:10px; object-fit:cover; display:block; margin-left:auto;margin-right:auto;}
 
+  .online { color: #22c55e; font-weight: 600; }  /* green for online */
+.offline { color: gray; font-style: italic; }   /* gray for offline */
+
 /* ===== MOBILE ===== */
 @media(max-width:700px){
   body{ align-items:flex-start; padding-top:60px; }
@@ -231,5 +234,9 @@ socket.on("private message", data => {
 // Initial backup load
 loadUsers();
 </script>
+
+  <script src="realtime.js"></script>
+  
 </body>
 </html>
+
