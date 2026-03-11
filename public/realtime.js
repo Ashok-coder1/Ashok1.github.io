@@ -1,3 +1,6 @@
+
+let unreadMessages = {};
+
 // -------------------------------
 // 1️⃣ Helpers: Time & Activity
 // -------------------------------
@@ -108,18 +111,25 @@ if (typeof socket !== "undefined") {
   socket.on("newUser", fetchAndRefreshUsers);
 }
 
-// 1. Ask the server for unread counts when the dashboard loads
-socket.emit("getUnreadCount", userId);
-
-// 2. Listen for the server's answer
-socket.on("unreadCount", (count) => {
-    console.log("Total unread messages:", count);
-    // This tells the app to refresh the list and show badges
-    fetchAndRefreshUsers(); 
-});
 
 // Update UI every 30 seconds to refresh "minutes ago" text
 setInterval(fetchAndRefreshUsers, 30000);
 
 // Initial Load
 fetchAndRefreshUsers();
+
+// Ask for counts when dashboard opens
+socket.emit("getUnreadCount", userId);
+
+// When server sends the count, refresh the list to show the badges
+socket.on("unreadCount", (data) => {
+
+  unreadMessages = {};
+
+  data.forEach(item => {
+    unreadMessages[item._id] = item.count;
+  });
+
+  fetchAndRefreshUsers();
+
+});
