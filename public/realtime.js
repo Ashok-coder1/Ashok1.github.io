@@ -1,5 +1,5 @@
 // 1. Get userId with a fallback to empty string
-const userId = localStorage.getItem("userId") || ""; 
+userId = localStorage.getItem("userId") || "";
 
 let unreadMessages = {};
 let onlineUsers = []; // Initialized as array to prevent .includes() errors
@@ -77,20 +77,41 @@ function renderUserList(users) {
   });
 }
 
+// Robust fetch & render users
 async function fetchAndRefreshUsers() {
+  const search = document.getElementById("searchUser")?.value || "";
   try {
-    const res = await fetch(`/users`);
-    const data = await res.json();
-    console.log("Fetched users:", data); // Check what comes back
+    const res = await fetch(`/users?search=${search}&exclude=${userId}`);
+    let data = await res.json();
 
-    let users = [];
-    if (Array.isArray(data)) users = data;
-    else if (data.users) users = data.users;
+    // Support both raw array and { users: [...] } format
+    if (!Array.isArray(data)) {
+      if (data.users && Array.isArray(data.users)) data = data.users;
+      else data = []; // fallback if server response is unexpected
+    }
 
-    renderUserList(users);
+    // Sort & render
+    renderUserList(sortByPriority(data));
   } catch (err) {
     console.error("Fetch error:", err);
+    const list = document.getElementById("userList");
+    if (list) list.innerHTML = "<p style='color:white;text-align:center;'>Unable to load users</p>";
   }
 }
-fetchAndRefreshUsers();
 
+// ===== SOCKET LISTENERS (keep them outside!) =====
+if (typeof socket !== "undefined") {
+  socket.on("online-users", (u) => {
+    onlineUsers = u;
+    fetchAndRefreshUsers();
+  });
+
+  socket.on("userStatusChanged", fetchAndRefreshUsers);
+  socket.on("newUser", fetchAndRefreshUsers);
+}
+
+// Refresh every 30s
+setInterval(fetchAndRefreshUsers, 30000);
+
+// Initial fetch
+fetchAndRefreshUsers();
