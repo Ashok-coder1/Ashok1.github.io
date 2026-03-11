@@ -1,5 +1,7 @@
+let unreadMessages = {};
+
 // -------------------------------
-// 1️⃣ Helpers: Time & Activity
+// 1️⃣ Helpers: Time & Activity (Original)
 // -------------------------------
 function getLastActivity(user) {
   const lastMsg = user.lastMessageTime ? new Date(user.lastMessageTime) : new Date(0);
@@ -27,25 +29,22 @@ function getLastSeen(user) {
 }
 
 // -------------------------------
-// 2️⃣ Sorting Logic (The Fix)
+// 2️⃣ Sorting Logic (Original)
 // -------------------------------
 function sortByPriority(users) {
   return [...users].sort((a, b) => {
     const aOnline = a.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(a._id));
     const bOnline = b.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(b._id));
 
-    // Priority 1: Online users at the top
     if (aOnline !== bOnline) {
       return aOnline ? -1 : 1;
     }
-
-    // Priority 2: Most recent activity (messages/online)
     return getLastActivity(b) - getLastActivity(a);
   });
 }
 
 // -------------------------------
-// 3️⃣ Render Logic (Matching Dashboard CSS)
+// 3️⃣ Render Logic (Original + Badge Logic)
 // -------------------------------
 function renderUserList(users) {
   const list = document.getElementById("userList");
@@ -54,6 +53,8 @@ function renderUserList(users) {
 
   users.forEach(u => {
     const isOnline = u.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(u._id));
+    const count = unreadMessages[u._id] || 0;
+    
     const div = document.createElement("div");
     div.className = "user";
     div.id = `user-${u._id}`;
@@ -67,13 +68,15 @@ function renderUserList(users) {
         </span>
         <span class="last-seen">${!isOnline ? "Last seen: " + getLastSeen(u) : ""}</span>
       </div>
-      <span class="badge" id="badge-${u._id}" style="${unreadMessages[u._id] > 0 ? "display:inline-block" : "display:none"}">
-        ${unreadMessages[u._id] || ""}
+      <span class="badge" id="badge-${u._id}" style="${count > 0 ? "display:inline-block" : "display:none"}">
+        ${count}
       </span>
     `;
 
     div.addEventListener("click", () => {
-      if (typeof unreadMessages !== "undefined") unreadMessages[u._id] = 0;
+      // NEW: Tell server messages are read so they don't return on refresh
+      socket.emit("messageSeen", { from: u._id, to: userId });
+      unreadMessages[u._id] = 0; 
       window.location.href = `chat.html?user=${u._id}&name=${u.username}`;
     });
 
@@ -82,7 +85,7 @@ function renderUserList(users) {
 }
 
 // -------------------------------
-// 4️⃣ Data Fetching
+// 4️⃣ Data Fetching (Original)
 // -------------------------------
 async function fetchAndRefreshUsers() {
   const search = document.getElementById("searchUser")?.value || "";
@@ -97,9 +100,28 @@ async function fetchAndRefreshUsers() {
 }
 
 // -------------------------------
-// 5️⃣ Event Listeners & Intervals
+// 5️⃣ Event Listeners (Merged)
 // -------------------------------
 if (typeof socket !== "undefined") {
+  socket.emit("getUnreadCount", userId);
+
+  socket.on("unreadCount", (data) => {
+    unreadMessages = {};
+    if (Array.isArray(data)) {
+      data.forEach(item => {
+        unreadMessages[item._id] = item.count;
+      });
+    }
+    fetchAndRefreshUsers();
+  });
+
+  socket.on("private message", (data) => {
+    if (data.from !== userId) {
+        unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
+        fetchAndRefreshUsers();
+    }
+  });
+
   socket.on("online-users", (u) => {
     onlineUsers = u;
     fetchAndRefreshUsers();
@@ -108,10 +130,5 @@ if (typeof socket !== "undefined") {
   socket.on("newUser", fetchAndRefreshUsers);
 }
 
-
-// Update UI every 30 seconds to refresh "minutes ago" text
 setInterval(fetchAndRefreshUsers, 30000);
-
-// Initial Load
 fetchAndRefreshUsers();
-
