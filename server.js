@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema({
   password: String,
   photo: { type: String, default: "/uploads/profile.webp" },
   lastSeen: { type: Date, default: null },
-  lastMessageTime: { type: Date, default: null } // Added for sorting
+  lastMessageTime: { type: Date, default: null } 
 });
 const User = mongoose.model("User", userSchema);
 
@@ -60,7 +60,6 @@ app.get("/users", async (req, res) => {
   if (search) query.username = { $regex: search, $options: "i" };
   if (exclude) query._id = { $ne: exclude };
   
-  // Include lastMessageTime and lastSeen in the selection
   const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
   const formattedUsers = users.map(u => ({...u._doc, photo: "/uploads/profile.webp"}));
   res.json(formattedUsers);
@@ -91,6 +90,20 @@ io.on("connection", (socket) => {
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
+  // --- NEW: MERGED UNREAD COUNT LOGIC ---
+  socket.on("getUnreadCount", async (userId) => {
+    try {
+      // Counts documents where 'to' is the user and 'seen' is false
+      const unread = await Message.countDocuments({
+        to: userId,
+        seen: false
+      });
+      socket.emit("unreadCount", unread);
+    } catch (err) {
+      console.error("Error counting unread:", err);
+    }
+  });
+
   socket.on("send-message", async ({ to, message }) => {
     const from = socketToUser[socket.id];
     if (!from) return;
@@ -98,7 +111,6 @@ io.on("connection", (socket) => {
     const msg = new Message({ from, to, message });
     await msg.save();
 
-    // UPDATE: Set current time for activity sorting on both users
     const now = new Date();
     await User.findByIdAndUpdate(from, { lastMessageTime: now });
     await User.findByIdAndUpdate(to, { lastMessageTime: now });
@@ -119,9 +131,7 @@ io.on("connection", (socket) => {
   socket.on("disconnect", async () => {
     const userId = socketToUser[socket.id];
     if (userId) {
-      // UPDATE: Save the exact time the user went offline
       await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-
       delete onlineUsers[userId];
       io.emit("online-users", Object.keys(onlineUsers));
     }
