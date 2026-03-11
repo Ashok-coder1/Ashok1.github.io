@@ -1,6 +1,3 @@
-// Initialize unreadMessages as an empty object at the very top
-let unreadMessages = {};
-
 // -------------------------------
 // 1️⃣ Helpers: Time & Activity
 // -------------------------------
@@ -61,9 +58,6 @@ function renderUserList(users) {
     div.className = "user";
     div.id = `user-${u._id}`;
 
-    // Display logic for unread badge
-    const count = unreadMessages[u._id] || 0;
-
     div.innerHTML = `
       <img src="uploads/profile.webp" class="user-photo">
       <div class="user-info">
@@ -73,8 +67,8 @@ function renderUserList(users) {
         </span>
         <span class="last-seen">${!isOnline ? "Last seen: " + getLastSeen(u) : ""}</span>
       </div>
-      <span class="badge" id="badge-${u._id}" style="${count > 0 ? "display:inline-block" : "display:none"}">
-        ${count}
+      <span class="badge" id="badge-${u._id}" style="${unreadMessages[u._id] > 0 ? "display:inline-block" : "display:none"}">
+        ${unreadMessages[u._id] || ""}
       </span>
     `;
 
@@ -106,45 +100,18 @@ async function fetchAndRefreshUsers() {
 // 5️⃣ Event Listeners & Intervals
 // -------------------------------
 if (typeof socket !== "undefined") {
-  // Request unread counts from database immediately on load/refresh
-  socket.emit("getUnreadCount", userId);
-
   socket.on("online-users", (u) => {
     onlineUsers = u;
     fetchAndRefreshUsers();
   });
-
-  // Handle unread data returned from server
-  socket.on("unreadCount", (data) => {
-    unreadMessages = {}; 
-    if (data && Array.isArray(data)) {
-      data.forEach(item => {
-        unreadMessages[item._id] = item.count;
-      });
-    }
-    fetchAndRefreshUsers(); // Re-render with badges visible
-  });
-
-  // Live update if a message arrives while on dashboard
-  socket.on("private message", (data) => {
-    const fromUser = data.from;
-    if (!unreadMessages[fromUser]) unreadMessages[fromUser] = 0;
-    unreadMessages[fromUser]++;
-    
-    // Update the specific badge UI immediately
-    const badge = document.getElementById(`badge-${fromUser}`);
-    if (badge) {
-        badge.innerText = unreadMessages[fromUser];
-        badge.style.display = "inline-block";
-    }
-  });
-
   socket.on("userStatusChanged", fetchAndRefreshUsers);
   socket.on("newUser", fetchAndRefreshUsers);
 }
+
 
 // Update UI every 30 seconds to refresh "minutes ago" text
 setInterval(fetchAndRefreshUsers, 30000);
 
 // Initial Load
 fetchAndRefreshUsers();
+
