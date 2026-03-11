@@ -77,45 +77,41 @@ function renderUserList(users) {
   });
 }
 
-// 5. Data Fetching (FIXED: NO EARLY RETURN)
+// Robust fetch & render users
 async function fetchAndRefreshUsers() {
   const search = document.getElementById("searchUser")?.value || "";
   try {
-    // Falls back to empty string if userId is null
     const res = await fetch(`/users?search=${search}&exclude=${userId}`);
-    const data = await res.json();
+    let data = await res.json();
+
+    // Support both raw array and { users: [...] } format
+    if (!Array.isArray(data)) {
+      if (data.users && Array.isArray(data.users)) data = data.users;
+      else data = []; // fallback if server response is unexpected
+    }
+
+    // Sort & render
     renderUserList(sortByPriority(data));
   } catch (err) {
     console.error("Fetch error:", err);
+    const list = document.getElementById("userList");
+    if (list) list.innerHTML = "<p style='color:white;text-align:center;'>Unable to load users</p>";
   }
 }
 
-// 6. Event Listeners
+// ===== SOCKET LISTENERS (keep them outside!) =====
 if (typeof socket !== "undefined") {
-  if (userId) socket.emit("getUnreadCount", userId);
-
-  socket.on("unreadCount", (data) => {
-    unreadMessages = {};
-    if (Array.isArray(data)) {
-      data.forEach(item => { unreadMessages[item._id] = item.count; });
-    }
-    fetchAndRefreshUsers();
-  });
-
-  socket.on("private message", (data) => {
-    if (data.from !== userId) {
-        unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
-        fetchAndRefreshUsers();
-    }
-  });
-
   socket.on("online-users", (u) => {
     onlineUsers = u;
     fetchAndRefreshUsers();
   });
+
   socket.on("userStatusChanged", fetchAndRefreshUsers);
   socket.on("newUser", fetchAndRefreshUsers);
 }
 
+// Refresh every 30s
 setInterval(fetchAndRefreshUsers, 30000);
+
+// Initial fetch
 fetchAndRefreshUsers();
