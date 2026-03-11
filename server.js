@@ -1,3 +1,4 @@
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -6,6 +7,7 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const bcrypt = require("bcrypt");
 
+// ===== CONFIGURATION =====
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -14,11 +16,12 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
-// DATABASE CONNECTION
+// ===== DATABASE CONNECTION =====
 mongoose.connect("mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/chatApp")
-.then(() => console.log("MongoDB connected"));
+  .then(() => console.log("MongoDB connected"))
+  .catch(err => console.error("Connection error:", err));
 
-// SCHEMAS
+// ===== MODELS =====
 const userSchema = new mongoose.Schema({
   username: String, 
   email: String, 
@@ -38,7 +41,7 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model("Message", messageSchema);
 
-// --- AUTH ROUTES ---
+// ===== AUTH ROUTES =====
 app.post("/signup", async (req, res) => {
   let { username, email, password } = req.body;
   if (!username.startsWith("+")) return res.status(400).json({ success: false });
@@ -52,25 +55,36 @@ app.post("/signup", async (req, res) => {
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
-  if (!user || !await bcrypt.compare(password, user.password)) return res.status(400).json({ success: false });
-  res.json({ success: true, username: "+" + user.username, userId: user._id, photo: "/uploads/profile.webp" });
-});
-
-// --- USER FETCH ROUTE (The "Old Way") ---
-app.get("/users", async (req, res) => {
-  try {
-    const { search = "", exclude } = req.query;
-    let query = {};
-    if (search) query.username = { $regex: search, $options: "i" };
-    if (exclude && mongoose.Types.ObjectId.isValid(exclude)) query._id = { $ne: exclude };
-    
-    const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
-    res.json(users);
-  } catch (err) {
-    res.status(500).json({ message: "Server Error" });
+  if (!user || !await bcrypt.compare(password, user.password)) {
+    return res.status(400).json({ success: false });
   }
+  res.json({ 
+    success: true, 
+    username: "+" + user.username, 
+    userId: user._id, 
+    photo: "/uploads/profile.webp" 
+  });
 });
 
+// ===== USER ROUTES =====
+app.get("/users", async (req, res) => {
+  const { search = "", exclude } = req.query;
+  let query = {};
+  if (search) query.username = { $regex: search, $options: "i" };
+  if (exclude) query._id = { $ne: exclude };
+  
+  const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
+  const formattedUsers = users.map(u => ({ ...u._doc, photo: "/uploads/profile.webp" }));
+  res.json(formattedUsers);
+});
+
+app.get("/user", async (req, res) => {
+  const user = await User.findById(req.query.id).select("_id username photo lastSeen lastMessageTime");
+  if (user) user.photo = "/uploads/profile.webp";
+  res.json(user);
+});
+
+// ===== MESSAGE ROUTES =====
 app.get("/messages", async (req, res) => {
   const { userId, chatWith } = req.query;
   const messages = await Message.find({
@@ -79,32 +93,35 @@ app.get("/messages", async (req, res) => {
   res.json(messages);
 });
 
-// --- SOCKET LOGIC ---
+// ===== SOCKET.IO LOGIC =====
 let onlineUsers = {}; 
 let socketToUser = {};
 
+
+
 io.on("connection", (socket) => {
-  // When a user logs in and opens the dashboard
+  
+  // Register User
   socket.on("register", (userId) => {
     onlineUsers[userId] = socket.id;
     socketToUser[socket.id] = userId;
-    // Broadcast list of IDs to everyone
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
-  // Simple Unread Count Aggregation
+  // Get Unread Count
   socket.on("getUnreadCount", async (userId) => {
     try {
-      const unreadData = await Message.aggregate([
-        { $match: { to: userId, seen: false } },
-        { $group: { _id: "$from", count: { $sum: 1 } } }
-      ]);
-      socket.emit("unreadCount", unreadData);
+      const unread = await Message.countDocuments({
+        to: userId,
+        seen: false
+      });
+      socket.emit("unreadCount", unread);
     } catch (err) {
-      socket.emit("unreadCount", []);
+      console.error("Error counting unread:", err);
     }
   });
 
+  // Send Message
   socket.on("send-message", async ({ to, message }) => {
     const from = socketToUser[socket.id];
     if (!from) return;
@@ -112,22 +129,34 @@ io.on("connection", (socket) => {
     const msg = new Message({ from, to, message });
     await msg.save();
 
+    const now = new Date();
+    await User.findByIdAndUpdate(from, { lastMessageTime: now });
+    await User.findByIdAndUpdate(to, { lastMessageTime: now });
+
     if (onlineUsers[to]) {
       const sender = await User.findById(from);
       io.to(onlineUsers[to]).emit("private message", {
-        message: msg.message, from, fromName: "+" + sender.username, timestamp: msg.timestamp
+        message: msg.message, 
+        from, 
+        fromName: "+" + sender.username, 
+        timestamp: msg.timestamp
       });
     }
   });
 
+  // Mark Message as Seen
   socket.on("messageSeen", async ({ from, to }) => {
     await Message.updateMany({ from, to, seen: false }, { seen: true });
-    if (onlineUsers[from]) io.to(onlineUsers[from]).emit("messageSeen", { from: to });
+    if (onlineUsers[from]) {
+      io.to(onlineUsers[from]).emit("messageSeen", { from: to });
+    }
   });
 
-  socket.on("disconnect", () => {
+  // Disconnect
+  socket.on("disconnect", async () => {
     const userId = socketToUser[socket.id];
     if (userId) {
+      await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
       delete onlineUsers[userId];
       io.emit("online-users", Object.keys(onlineUsers));
     }
@@ -135,4 +164,6 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3000, () => console.log("Server running on port 3000"));
+// ===== START SERVER =====
+const PORT = 3000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
