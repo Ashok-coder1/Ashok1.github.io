@@ -12,7 +12,7 @@ function getLastActivity(user) {
 }
 
 function getLastSeen(user) {
-  const isOnline = onlineUsers?.includes(user._id);
+  const isOnline = onlineUsers?.includes(user._id.toString());
   if (isOnline) return "Online";
   
   const lastSeenDate = user.lastSeen || user.lastMessageTime;
@@ -33,8 +33,8 @@ function getLastSeen(user) {
 // 3. Sorting Logic
 function sortByPriority(users) {
   return [...users].sort((a, b) => {
-    const aOnline = a.online || (onlineUsers?.includes(a._id));
-    const bOnline = b.online || (onlineUsers?.includes(b._id));
+    const aOnline = a.online || (onlineUsers?.includes(a._id.toString()));
+const bOnline = b.online || (onlineUsers?.includes(b._id.toString()));
     if (aOnline !== bOnline) return aOnline ? -1 : 1;
     return getLastActivity(b) - getLastActivity(a);
   });
@@ -47,7 +47,7 @@ function renderUserList(users) {
   list.innerHTML = "";
 
   users.forEach(u => {
-    const isOnline = onlineUsers?.includes(u._id);
+    const isOnline = onlineUsers?.includes(u._id.toString());
     const count = unreadMessages[u._id] || 0;
     
     const div = document.createElement("div");
