@@ -90,20 +90,16 @@ io.on("connection", (socket) => {
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
-  // --- FIXED: AGGREGATED UNREAD COUNT LOGIC ---
   socket.on("getUnreadCount", async (userId) => {
     try {
-      // This groups messages by the sender ('from') so we know who sent how many
       const unreadData = await Message.aggregate([
         { $match: { to: userId, seen: false } },
         { $group: { _id: "$from", count: { $sum: 1 } } }
       ]);
-      
-      // Sends an array: [{ _id: "senderId", count: 3 }, ...]
       socket.emit("unreadCount", unreadData);
     } catch (err) {
       console.error("Error counting unread:", err);
-      socket.emit("unreadCount", []); // Send empty array on error to prevent UI crash
+      socket.emit("unreadCount", []);
     }
   });
 
