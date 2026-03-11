@@ -51,6 +51,7 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
   if (!user || !await bcrypt.compare(password, user.password)) return res.status(400).json({ success: false });
+  // This sends the userId to be saved in localStorage
   res.json({ success: true, username: "+" + user.username, userId: user._id, photo: "/uploads/profile.webp" });
 });
 
@@ -58,7 +59,7 @@ app.get("/users", async (req, res) => {
   const { search = "", exclude } = req.query;
   let query = {};
   if (search) query.username = { $regex: search, $options: "i" };
-  if (exclude) query._id = { $ne: exclude };
+  if (exclude && mongoose.Types.ObjectId.isValid(exclude)) query._id = { $ne: exclude };
   
   const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
   const formattedUsers = users.map(u => ({...u._doc, photo: "/uploads/profile.webp"}));
@@ -90,8 +91,10 @@ io.on("connection", (socket) => {
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
+  // --- UPDATED: AGGREGATED UNREAD COUNT ---
   socket.on("getUnreadCount", async (userId) => {
     try {
+      // Groups messages by sender to give specific counts per user
       const unreadData = await Message.aggregate([
         { $match: { to: userId, seen: false } },
         { $group: { _id: "$from", count: { $sum: 1 } } }
