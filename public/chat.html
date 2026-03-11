@@ -179,21 +179,39 @@ socket.emit("register", userId);
 document.getElementById("backBtn").addEventListener("click", ()=> window.location.href="dashboard.html");
 
 let onlineUsers = [];
-let lastSeenTime = "N/A";
+let lastSeenRaw = null; // Storing raw date for the helper function
+
+// --- NEW HELPER FOR DYNAMIC TIME ---
+function getTimeAgo(date) {
+  if (!date) return "N/A";
+  const now = new Date();
+  const past = new Date(date);
+  const diffMin = Math.floor((now - past) / 60000);
+
+  if (diffMin < 1) return "Just now";
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `${diffH}h ago`;
+  return past.toLocaleDateString();
+}
 
 function updateStatus() {
   const isOnline = onlineUsers.includes(chatWithId);
-  chatStatusEl.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${lastSeenTime}`;
+  // Using the helper here instead of the raw long string
+  chatStatusEl.textContent = isOnline ? "🟢 Online" : `⚫ Offline - last seen ${getTimeAgo(lastSeenRaw)}`;
 }
 
 fetch(`/user?id=${chatWithId}`)
   .then(res=>res.json())
   .then(user=>{
-    lastSeenTime = user.lastSeen ? new Date(user.lastSeen).toLocaleString() : "N/A";
+    lastSeenRaw = user.lastSeen; // Store the actual timestamp
     chatUsernameEl.textContent = "+" + user.username;
     chatPhotoEl.src = "uploads/profile.webp";
     updateStatus();
   });
+
+// Refresh the "Time Ago" every minute while the user is on the chat page
+setInterval(updateStatus, 60000);
 
 socket.on("online-users", users => {
   onlineUsers = users;
