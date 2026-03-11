@@ -224,6 +224,10 @@ async function loadMessages(){
   messagesEl.innerHTML = ""; 
   msgs.forEach(m=>appendMessage(m,m.seen));
 }
+
+// Tell the server Harry has seen the messages from this user
+socket.emit("messageSeen", { from: chatWithId, to: userId });
+
 loadMessages();
 
 function appendMessage(msg, seen=false){
