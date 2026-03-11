@@ -1,5 +1,5 @@
 // 1. Get userId with a fallback to empty string
-userId = localStorage.getItem("userId") || "";
+const userId = localStorage.getItem("userId") || ""; 
 
 let unreadMessages = {};
 let onlineUsers = []; // Initialized as array to prevent .includes() errors
@@ -12,7 +12,7 @@ function getLastActivity(user) {
 }
 
 function getLastSeen(user) {
-  const isOnline = onlineUsers?.includes(user._id.toString());
+  const isOnline = onlineUsers?.includes(user._id);
   if (isOnline) return "Online";
   
   const lastSeenDate = user.lastSeen || user.lastMessageTime;
@@ -33,8 +33,8 @@ function getLastSeen(user) {
 // 3. Sorting Logic
 function sortByPriority(users) {
   return [...users].sort((a, b) => {
-    const aOnline = a.online || (onlineUsers?.includes(a._id.toString()));
-const bOnline = b.online || (onlineUsers?.includes(b._id.toString()));
+    const aOnline = a.online || (onlineUsers?.includes(a._id));
+    const bOnline = b.online || (onlineUsers?.includes(b._id));
     if (aOnline !== bOnline) return aOnline ? -1 : 1;
     return getLastActivity(b) - getLastActivity(a);
   });
@@ -47,7 +47,7 @@ function renderUserList(users) {
   list.innerHTML = "";
 
   users.forEach(u => {
-    const isOnline = onlineUsers?.includes(u._id.toString());
+    const isOnline = onlineUsers?.includes(u._id);
     const count = unreadMessages[u._id] || 0;
     
     const div = document.createElement("div");
@@ -77,41 +77,45 @@ function renderUserList(users) {
   });
 }
 
-// Robust fetch & render users
+// 5. Data Fetching (FIXED: NO EARLY RETURN)
 async function fetchAndRefreshUsers() {
   const search = document.getElementById("searchUser")?.value || "";
   try {
+    // Falls back to empty string if userId is null
     const res = await fetch(`/users?search=${search}&exclude=${userId}`);
-    let data = await res.json();
-
-    // Support both raw array and { users: [...] } format
-    if (!Array.isArray(data)) {
-      if (data.users && Array.isArray(data.users)) data = data.users;
-      else data = []; // fallback if server response is unexpected
-    }
-
-    // Sort & render
+    const data = await res.json();
     renderUserList(sortByPriority(data));
   } catch (err) {
     console.error("Fetch error:", err);
-    const list = document.getElementById("userList");
-    if (list) list.innerHTML = "<p style='color:white;text-align:center;'>Unable to load users</p>";
   }
 }
 
-// ===== SOCKET LISTENERS (keep them outside!) =====
+// 6. Event Listeners
 if (typeof socket !== "undefined") {
+  if (userId) socket.emit("getUnreadCount", userId);
+
+  socket.on("unreadCount", (data) => {
+    unreadMessages = {};
+    if (Array.isArray(data)) {
+      data.forEach(item => { unreadMessages[item._id] = item.count; });
+    }
+    fetchAndRefreshUsers();
+  });
+
+  socket.on("private message", (data) => {
+    if (data.from !== userId) {
+        unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
+        fetchAndRefreshUsers();
+    }
+  });
+
   socket.on("online-users", (u) => {
     onlineUsers = u;
     fetchAndRefreshUsers();
   });
-
   socket.on("userStatusChanged", fetchAndRefreshUsers);
   socket.on("newUser", fetchAndRefreshUsers);
 }
 
-// Refresh every 30s
 setInterval(fetchAndRefreshUsers, 30000);
-
-// Initial fetch
 fetchAndRefreshUsers();
