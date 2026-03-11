@@ -1,24 +1,26 @@
-let unreadMessages = {};
+// 1. Get userId with a fallback to empty string
+const userId = localStorage.getItem("userId") || ""; 
 
-// -------------------------------
-// 1️⃣ Helpers: Time & Activity (Original)
-// -------------------------------
+let unreadMessages = {};
+let onlineUsers = []; // Initialized as array to prevent .includes() errors
+
+// 2. Helpers: Time & Activity
 function getLastActivity(user) {
   const lastMsg = user.lastMessageTime ? new Date(user.lastMessageTime) : new Date(0);
-  const lastOn = user.lastOnlineTime ? new Date(user.lastOnlineTime) : new Date(0);
-  return Math.max(lastMsg, lastOn);
+  const lastSeen = user.lastSeen ? new Date(user.lastSeen) : new Date(0);
+  return Math.max(lastMsg, lastSeen);
 }
 
 function getLastSeen(user) {
-  if (user.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(user._id))) return "Online";
+  const isOnline = onlineUsers?.includes(user._id);
+  if (isOnline) return "Online";
   
-  const lastSeenDate = user.lastSeen || user.lastOnlineTime;
+  const lastSeenDate = user.lastSeen || user.lastMessageTime;
   if (!lastSeenDate) return "";
 
   const lastSeen = new Date(lastSeenDate);
   const now = new Date();
-  const diffMs = now - lastSeen;
-  const diffMin = Math.floor(diffMs / 60000);
+  const diffMin = Math.floor((now - lastSeen) / 60000);
 
   if (diffMin < 1) return "Just now";
   if (diffMin < 60) return `${diffMin} min ago`;
@@ -28,37 +30,29 @@ function getLastSeen(user) {
   return lastSeen.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-// -------------------------------
-// 2️⃣ Sorting Logic (Original)
-// -------------------------------
+// 3. Sorting Logic
 function sortByPriority(users) {
   return [...users].sort((a, b) => {
-    const aOnline = a.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(a._id));
-    const bOnline = b.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(b._id));
-
-    if (aOnline !== bOnline) {
-      return aOnline ? -1 : 1;
-    }
+    const aOnline = a.online || (onlineUsers?.includes(a._id));
+    const bOnline = b.online || (onlineUsers?.includes(b._id));
+    if (aOnline !== bOnline) return aOnline ? -1 : 1;
     return getLastActivity(b) - getLastActivity(a);
   });
 }
 
-// -------------------------------
-// 3️⃣ Render Logic (Original + Badge Logic)
-// -------------------------------
+// 4. Render Logic (UI)
 function renderUserList(users) {
   const list = document.getElementById("userList");
   if (!list) return;
   list.innerHTML = "";
 
   users.forEach(u => {
-    const isOnline = u.online || (typeof onlineUsers !== "undefined" && onlineUsers.includes(u._id));
+    const isOnline = onlineUsers?.includes(u._id);
     const count = unreadMessages[u._id] || 0;
     
     const div = document.createElement("div");
     div.className = "user";
     div.id = `user-${u._id}`;
-
     div.innerHTML = `
       <img src="uploads/profile.webp" class="user-photo">
       <div class="user-info">
@@ -74,43 +68,36 @@ function renderUserList(users) {
     `;
 
     div.addEventListener("click", () => {
-      // NEW: Tell server messages are read so they don't return on refresh
-      socket.emit("messageSeen", { from: u._id, to: userId });
+      // Clear badge in DB immediately
+      if (userId) socket.emit("messageSeen", { from: u._id, to: userId });
       unreadMessages[u._id] = 0; 
       window.location.href = `chat.html?user=${u._id}&name=${u.username}`;
     });
-
     list.appendChild(div);
   });
 }
 
-// -------------------------------
-// 4️⃣ Data Fetching (Original)
-// -------------------------------
+// 5. Data Fetching (FIXED: NO EARLY RETURN)
 async function fetchAndRefreshUsers() {
   const search = document.getElementById("searchUser")?.value || "";
   try {
+    // Falls back to empty string if userId is null
     const res = await fetch(`/users?search=${search}&exclude=${userId}`);
     const data = await res.json();
-    const sorted = sortByPriority(data);
-    renderUserList(sorted);
+    renderUserList(sortByPriority(data));
   } catch (err) {
-    console.error("Error fetching users:", err);
+    console.error("Fetch error:", err);
   }
 }
 
-// -------------------------------
-// 5️⃣ Event Listeners (Merged)
-// -------------------------------
+// 6. Event Listeners
 if (typeof socket !== "undefined") {
-  socket.emit("getUnreadCount", userId);
+  if (userId) socket.emit("getUnreadCount", userId);
 
   socket.on("unreadCount", (data) => {
     unreadMessages = {};
     if (Array.isArray(data)) {
-      data.forEach(item => {
-        unreadMessages[item._id] = item.count;
-      });
+      data.forEach(item => { unreadMessages[item._id] = item.count; });
     }
     fetchAndRefreshUsers();
   });
