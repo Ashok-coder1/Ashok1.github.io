@@ -108,6 +108,16 @@ if (typeof socket !== "undefined") {
   socket.on("newUser", fetchAndRefreshUsers);
 }
 
+// 1. Ask the server for unread counts when the dashboard loads
+socket.emit("getUnreadCount", userId);
+
+// 2. Listen for the server's answer
+socket.on("unreadCount", (count) => {
+    console.log("Total unread messages:", count);
+    // This tells the app to refresh the list and show badges
+    fetchAndRefreshUsers(); 
+});
+
 // Update UI every 30 seconds to refresh "minutes ago" text
 setInterval(fetchAndRefreshUsers, 30000);
 
