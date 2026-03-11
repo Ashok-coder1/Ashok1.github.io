@@ -14,9 +14,11 @@ app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
+// DATABASE CONNECTION
 mongoose.connect("mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1.ydjxy7x.mongodb.net/chatApp")
 .then(() => console.log("MongoDB connected"));
 
+// SCHEMAS
 const userSchema = new mongoose.Schema({
   username: String, 
   email: String, 
@@ -36,7 +38,7 @@ const messageSchema = new mongoose.Schema({
 });
 const Message = mongoose.model("Message", messageSchema);
 
-// AUTH ROUTES
+// --- AUTH ROUTES ---
 app.post("/signup", async (req, res) => {
   let { username, email, password } = req.body;
   if (!username.startsWith("+")) return res.status(400).json({ success: false });
@@ -51,25 +53,22 @@ app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
   if (!user || !await bcrypt.compare(password, user.password)) return res.status(400).json({ success: false });
-  // This sends the userId to be saved in localStorage
   res.json({ success: true, username: "+" + user.username, userId: user._id, photo: "/uploads/profile.webp" });
 });
 
+// --- USER FETCH ROUTE (The "Old Way") ---
 app.get("/users", async (req, res) => {
-  const { search = "", exclude } = req.query;
-  let query = {};
-  if (search) query.username = { $regex: search, $options: "i" };
-  if (exclude && mongoose.Types.ObjectId.isValid(exclude)) query._id = { $ne: exclude };
-  
-  const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
-  const formattedUsers = users.map(u => ({...u._doc, photo: "/uploads/profile.webp"}));
-  res.json(formattedUsers);
-});
-
-app.get("/user", async (req, res) => {
-  const user = await User.findById(req.query.id).select("_id username photo lastSeen lastMessageTime");
-  if(user) user.photo = "/uploads/profile.webp";
-  res.json(user);
+  try {
+    const { search = "", exclude } = req.query;
+    let query = {};
+    if (search) query.username = { $regex: search, $options: "i" };
+    if (exclude && mongoose.Types.ObjectId.isValid(exclude)) query._id = { $ne: exclude };
+    
+    const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: "Server Error" });
+  }
 });
 
 app.get("/messages", async (req, res) => {
@@ -80,28 +79,28 @@ app.get("/messages", async (req, res) => {
   res.json(messages);
 });
 
-// SOCKET LOGIC
+// --- SOCKET LOGIC ---
 let onlineUsers = {}; 
 let socketToUser = {};
 
 io.on("connection", (socket) => {
+  // When a user logs in and opens the dashboard
   socket.on("register", (userId) => {
     onlineUsers[userId] = socket.id;
     socketToUser[socket.id] = userId;
+    // Broadcast list of IDs to everyone
     io.emit("online-users", Object.keys(onlineUsers));
   });
 
-  // --- UPDATED: AGGREGATED UNREAD COUNT ---
+  // Simple Unread Count Aggregation
   socket.on("getUnreadCount", async (userId) => {
     try {
-      // Groups messages by sender to give specific counts per user
       const unreadData = await Message.aggregate([
         { $match: { to: userId, seen: false } },
         { $group: { _id: "$from", count: { $sum: 1 } } }
       ]);
       socket.emit("unreadCount", unreadData);
     } catch (err) {
-      console.error("Error counting unread:", err);
       socket.emit("unreadCount", []);
     }
   });
@@ -112,10 +111,6 @@ io.on("connection", (socket) => {
 
     const msg = new Message({ from, to, message });
     await msg.save();
-
-    const now = new Date();
-    await User.findByIdAndUpdate(from, { lastMessageTime: now });
-    await User.findByIdAndUpdate(to, { lastMessageTime: now });
 
     if (onlineUsers[to]) {
       const sender = await User.findById(from);
@@ -130,10 +125,9 @@ io.on("connection", (socket) => {
     if (onlineUsers[from]) io.to(onlineUsers[from]).emit("messageSeen", { from: to });
   });
 
-  socket.on("disconnect", async () => {
+  socket.on("disconnect", () => {
     const userId = socketToUser[socket.id];
     if (userId) {
-      await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
       delete onlineUsers[userId];
       io.emit("online-users", Object.keys(onlineUsers));
     }
@@ -141,4 +135,4 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3000, () => console.log("Server running"));
+server.listen(3000, () => console.log("Server running on port 3000"));
