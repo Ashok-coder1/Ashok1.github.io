@@ -18,20 +18,25 @@ mongoose.connect("mongodb+srv://ashokpokhrel25_db_user:dDwjmkdD4zfzYN0M@cluster1
 .then(() => console.log("MongoDB connected"));
 
 const userSchema = new mongoose.Schema({
-  username: String, email: String, password: String,
+  username: String, 
+  email: String, 
+  password: String,
   photo: { type: String, default: "/uploads/profile.webp" },
-  lastSeen: { type: Date, default: null }
+  lastSeen: { type: Date, default: null },
+  lastMessageTime: { type: Date, default: null } // Added for sorting
 });
 const User = mongoose.model("User", userSchema);
 
 const messageSchema = new mongoose.Schema({
-  from: String, to: String, message: String,
+  from: String, 
+  to: String, 
+  message: String,
   timestamp: { type: Date, default: Date.now },
   seen: { type: Boolean, default: false }
 });
 const Message = mongoose.model("Message", messageSchema);
 
-// AUTH ROUTES (Unchanged)
+// AUTH ROUTES
 app.post("/signup", async (req, res) => {
   let { username, email, password } = req.body;
   if (!username.startsWith("+")) return res.status(400).json({ success: false });
@@ -54,14 +59,15 @@ app.get("/users", async (req, res) => {
   let query = {};
   if (search) query.username = { $regex: search, $options: "i" };
   if (exclude) query._id = { $ne: exclude };
-  // Force default photo in the response for all users
-  const users = await User.find(query).select("_id username photo lastSeen");
+  
+  // Include lastMessageTime and lastSeen in the selection
+  const users = await User.find(query).select("_id username photo lastSeen lastMessageTime");
   const formattedUsers = users.map(u => ({...u._doc, photo: "/uploads/profile.webp"}));
   res.json(formattedUsers);
 });
 
 app.get("/user", async (req, res) => {
-  const user = await User.findById(req.query.id).select("_id username photo lastSeen");
+  const user = await User.findById(req.query.id).select("_id username photo lastSeen lastMessageTime");
   if(user) user.photo = "/uploads/profile.webp";
   res.json(user);
 });
@@ -88,8 +94,15 @@ io.on("connection", (socket) => {
   socket.on("send-message", async ({ to, message }) => {
     const from = socketToUser[socket.id];
     if (!from) return;
+
     const msg = new Message({ from, to, message });
     await msg.save();
+
+    // UPDATE: Set current time for activity sorting on both users
+    const now = new Date();
+    await User.findByIdAndUpdate(from, { lastMessageTime: now });
+    await User.findByIdAndUpdate(to, { lastMessageTime: now });
+
     if (onlineUsers[to]) {
       const sender = await User.findById(from);
       io.to(onlineUsers[to]).emit("private message", {
@@ -103,9 +116,12 @@ io.on("connection", (socket) => {
     if (onlineUsers[from]) io.to(onlineUsers[from]).emit("messageSeen", { from: to });
   });
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     const userId = socketToUser[socket.id];
     if (userId) {
+      // UPDATE: Save the exact time the user went offline
+      await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
+
       delete onlineUsers[userId];
       io.emit("online-users", Object.keys(onlineUsers));
     }
