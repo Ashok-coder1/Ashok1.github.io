@@ -90,90 +90,39 @@ body{
 <audio id="msgSound" src="sounds/message.mp3" preload="auto"></audio>
 
 <script src="/socket.io/socket.io.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <script>
-// ===== SETUP & SOCKET INITIALIZATION =====
 const socket = io();
 const userId = localStorage.getItem("userId");
 if (!userId) window.location.href = "index.html";
 
 let onlineUsers = [];
 let unreadMessages = {};
-const searchInput = document.getElementById("searchUser");
 
-// Register user
 socket.emit("register", userId);
+socket.emit("getUnreadCount", userId);
 
-// ===== PROFILE MENU LOGIC =====
-const profileBtn = document.getElementById("profileBtn");
-const profileMenu = document.getElementById("profileMenu");
-const usernameSpan = document.getElementById("usernameText");
-let username = localStorage.getItem("username") || "User";
-usernameSpan.innerText = "+" + username;
-
-profileBtn.addEventListener("click", e => {
-  e.stopPropagation();
-  profileMenu.style.display = profileMenu.style.display === "flex" ? "none" : "flex";
+socket.on("unreadCount", (data) => {
+  unreadMessages = {};
+  data.forEach(item => {
+    unreadMessages[item._id] = item.count;
+  });
+  if (typeof fetchAndRefreshUsers === "function") fetchAndRefreshUsers();
 });
 
-document.addEventListener("click", () => { profileMenu.style.display = "none"; });
-profileMenu.addEventListener("click", e => e.stopPropagation());
-
-// ===== USER SETTINGS (USERNAME/EMAIL/PASS) =====
-document.getElementById("changeUsername").addEventListener("click", async () => {
-  const newName = prompt("Enter new username:");
-  if(!newName) return;
-  const cleanName = newName.startsWith("+") ? newName.slice(1) : newName;
-  await fetch("/change-username", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: userId, username: cleanName })});
-  username = "+" + cleanName; usernameSpan.innerText = username; localStorage.setItem("username", cleanName);
-  alert("Username updated!");
+socket.on("online-users", (u) => {
+  onlineUsers = u;
+  if (typeof fetchAndRefreshUsers === "function") fetchAndRefreshUsers();
 });
 
-document.getElementById("changeEmail").addEventListener("click", async () => {
-  const newEmail = prompt("Enter new email:"); if(!newEmail) return;
-  await fetch("/change-email", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: userId, email: newEmail })});
-  alert("Email updated!");
-});
-
-document.getElementById("changePassword").addEventListener("click", async () => {
-  const newPass = prompt("Enter new password:"); if(!newPass) return;
-  await fetch("/change-password", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ userId: userId, password: newPass })});
-  alert("Password updated!");
-});
-
-document.getElementById("logoutBtn").addEventListener("click", () => { localStorage.clear(); window.location.href="index.html"; });
-
-
-// ===== INTEGRATION WITH REALTIME.JS =====
-// We use fetchAndRefreshUsers from realtime.js to handle sorting & rendering
-
-searchInput.addEventListener("input", e => {
-    if (typeof fetchAndRefreshUsers === "function") {
-        fetchAndRefreshUsers();
-    }
-});
-
-socket.on("private message", data => {
-    msgSound.play();
-    if (navigator.vibrate) {
-        navigator.vibrate(200);
-    }
-
+socket.on("private message", (data) => {
+  if (data.from !== userId) {
     unreadMessages[data.from] = (unreadMessages[data.from] || 0) + 1;
-
-    // Trigger refresh in realtime.js
-    if (typeof fetchAndRefreshUsers === "function") {
-        fetchAndRefreshUsers();
-    }
-
-    if (Notification.permission === "granted") {
-        new Notification("New Message", {
-            body: data.message,
-            icon: "uploads/profile.webp"
-        });
-    }
+    if (typeof fetchAndRefreshUsers === "function") fetchAndRefreshUsers();
+    document.getElementById("msgSound").play();
+  }
 });
 </script>
-
 <script src="realtime.js"></script>
 
 </body>
